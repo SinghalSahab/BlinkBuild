@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000; /* Black background */
+  --background: #000000; /* Dark background */
   --foreground: #ffffff; /* White text for readability */
-  --accent: #00FF88; /* Neon green accent */
-  --button-bg: #00FF88; /* Button background */
-  --button-hover-bg: #00CC70; /* Slightly darker green for hover */
+  --accent: #00ff00; /* Neon green accent */
+  --button-bg: #00ff00; /* Button background */
+  --button-hover-bg: #00cc00; /* Slightly darker green for hover */
   --border: #333333; /* Subtle border color */
 }
 
