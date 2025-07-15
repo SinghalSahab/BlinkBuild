@@ -25,8 +25,13 @@ import {
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
-import Editor from "@monaco-editor/react"
+
 import { parseXml } from "../lib/steps"
+import { CodeEditor } from "@/components/CodeEditor"
+import { FileExplorer } from "@/components/FileExplorer"
+import { useWebContainer } from "@/hooks/useWebcontainers"
+import { FileNode } from "@webcontainer/api"
+import { PreviewFrame } from "@/components/PreviewFrame"
 
 
 interface PromptMessage {
@@ -34,6 +39,13 @@ interface PromptMessage {
   content: string;
 }
 
+ interface FileItem {
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileItem[];
+  content?: string;
+  path: string;
+}
 enum StepType{
   CreateFile,
   CreateFolder,
@@ -51,13 +63,7 @@ interface Step {
       path?: string;
 }
 
-interface FileNode {
-  name: string
-  type: "file" | "folder"
-  children?: FileNode[]
-  size?: string
-  modified?: string
-}
+
 
 // const initialSteps: Step[] = [
 //   {
@@ -100,42 +106,42 @@ interface FileNode {
 //   },
 // ]
 
-const fileStructure: FileNode = {
-  name: "my-website",
-  type: "folder",
-  children: [
-    {
-      name: "app",
-      type: "folder",
-      children: [
-        { name: "layout.tsx", type: "file", size: "2.1 KB", modified: "2 min ago" },
-        { name: "page.tsx", type: "file", size: "4.3 KB", modified: "1 min ago" },
-        { name: "globals.css", type: "file", size: "1.8 KB", modified: "3 min ago" },
-        {
-          name: "components",
-          type: "folder",
-          children: [
-            { name: "hero.tsx", type: "file", size: "3.2 KB", modified: "1 min ago" },
-            { name: "about.tsx", type: "file", size: "2.8 KB", modified: "2 min ago" },
-            { name: "gallery.tsx", type: "file", size: "4.1 KB", modified: "1 min ago" },
-            { name: "contact.tsx", type: "file", size: "2.5 KB", modified: "2 min ago" },
-          ],
-        },
-      ],
-    },
-    {
-      name: "public",
-      type: "folder",
-      children: [
-        { name: "favicon.ico", type: "file", size: "4.2 KB", modified: "5 min ago" },
-        { name: "logo.png", type: "file", size: "12.3 KB", modified: "5 min ago" },
-      ],
-    },
-    { name: "package.json", type: "file", size: "1.2 KB", modified: "5 min ago" },
-    { name: "tailwind.config.js", type: "file", size: "0.8 KB", modified: "4 min ago" },
-    { name: "next.config.js", type: "file", size: "0.3 KB", modified: "5 min ago" },
-  ],
-}
+// const fileStructure: FileNode = {
+//   name: "my-website",
+//   type: "folder",
+//   children: [
+//     {
+//       name: "app",
+//       type: "folder",
+//       children: [
+//         { name: "layout.tsx", type: "file", size: "2.1 KB", modified: "2 min ago" },
+//         { name: "page.tsx", type: "file", size: "4.3 KB", modified: "1 min ago" },
+//         { name: "globals.css", type: "file", size: "1.8 KB", modified: "3 min ago" },
+//         {
+//           name: "components",
+//           type: "folder",
+//           children: [
+//             { name: "hero.tsx", type: "file", size: "3.2 KB", modified: "1 min ago" },
+//             { name: "about.tsx", type: "file", size: "2.8 KB", modified: "2 min ago" },
+//             { name: "gallery.tsx", type: "file", size: "4.1 KB", modified: "1 min ago" },
+//             { name: "contact.tsx", type: "file", size: "2.5 KB", modified: "2 min ago" },
+//           ],
+//         },
+//       ],
+//     },
+//     {
+//       name: "public",
+//       type: "folder",
+//       children: [
+//         { name: "favicon.ico", type: "file", size: "4.2 KB", modified: "5 min ago" },
+//         { name: "logo.png", type: "file", size: "12.3 KB", modified: "5 min ago" },
+//       ],
+//     },
+//     { name: "package.json", type: "file", size: "1.2 KB", modified: "5 min ago" },
+//     { name: "tailwind.config.js", type: "file", size: "0.8 KB", modified: "4 min ago" },
+//     { name: "next.config.js", type: "file", size: "0.3 KB", modified: "5 min ago" },
+//   ],
+// }
 
 function FileIcon({ type, name }: { type: string; name: string }) {
   if (type === "folder") return <Folder className="h-4 w-4 text-[#00FF88]" />
@@ -153,7 +159,7 @@ function FileTreeNode({
   level = 0,
   setSelectedFile,
   selectedFile,
-}: { node: FileNode; level?: number; setSelectedFile: (file: string) => void; selectedFile: string }) {
+}: { node: FileItem; level?: number; setSelectedFile: (file: string) => void; selectedFile: string }) {
   const [isOpen, setIsOpen] = useState(level < 2)
 
   const handleFileClick = (filePath: string) => {
@@ -205,7 +211,11 @@ function FileTreeNode({
           </div>
         )}
         <span className="text-sm font-medium text-gray-200">{node.name}</span>
-        {node.size && <span className="text-xs text-gray-500 ml-auto">{node.size}</span>}
+        {node.type === "file" && (
+          <Badge className="ml-auto bg-gray-800 text-gray-400 text-xs">
+            {getLanguageFromFile(node.name)}
+          </Badge>
+        )}
       </div>
       {node.type === "folder" && isOpen && node.children && (
         <div>
@@ -237,13 +247,14 @@ function getLanguageFromFile(filename: string): string {
 export default function GenerationContent() {
   const searchParams = useSearchParams()
   const prompt = searchParams.get("prompt") || ""
+  const webcontainer = useWebContainer();
 
-  const [steps, setSteps] = useState<Step[]>([])
-  const [progress, setProgress] = useState(40)
-  const [loading, setLoading] = useState(true)
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [progress, setProgress] = useState(40);
+  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<FileItem[]>([]);
 
-
-  const [selectedFile, setSelectedFile] = useState<string>("app/page.tsx")
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileContents] = useState<Record<string, string>>({
     "app/layout.tsx": `import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
@@ -443,6 +454,7 @@ const nextConfig = {}
 module.exports = nextConfig`,
   })
 
+ 
   async function backendPrompt(prompt: string) {
     const res = await fetch("/api/template", {
       method: "POST",
@@ -452,28 +464,29 @@ module.exports = nextConfig`,
     console.log("Response from /api/template:", res);
     const data = await res.json();
     console.log("Received data:", data);
+
     if (!data || !data.prompts || !data.prompts.length) {
       throw new Error("No prompts received from the server");
-    }      
-   // const promptai = data.prompts;
-   const promptai = data.prompts; 
+    }
+
+    const promptai = data.prompts;
     console.log("Prompt AI:", promptai);
-   
-   const uiprompts = data.uiPrompts[0];
-   const xml = parseXml(uiprompts)
-   const stepsArray = Object.values(xml);
-   setSteps(stepsArray);
-    console.log("Parsed XML:", xml);
+
+    const uiprompts = data.uiPrompts[0];
+    const xml = parseXml(uiprompts);
+    const stepsArray = Object.values(xml);
+    
+    setSteps(stepsArray);
     console.log("Parsed steps:", steps);
-    console.log("steps",steps[0])
-    setLoading(false)
-    const uiMessages: PromptMessage[] = (data.uiPrompts || []).map((p: string) => ({ 
-      role: "user", 
-      content: p 
+    setLoading(false);
+
+    const uiMessages: PromptMessage[] = (data.uiPrompts || []).map((p: string) => ({
+      role: "user",
+      content: p,
     }));
 
     const messages = [
-      ...promptai.map((p:string) => ({ role: "user", content: p })),
+      ...promptai.map((p: string) => ({ role: "user", content: p })),
       ...uiMessages,
       { role: "user", content: prompt },
     ];
@@ -484,43 +497,166 @@ module.exports = nextConfig`,
     });
 
     console.log("Result from /api/chat:", result);
-      const dat = await result.json();
-      console.log("Data from /api/chat:", dat);
-  } 
+    const dat = await result.json();
+    console.log("Data from /api/chat:", dat);
+
+    
+
+const stepsArray2 = Object.values(parseXml(dat.response));
+let lastId = stepsArray.length;
+const newSteps = stepsArray2.map((step, index) => ({
+  ...step,
+  id: lastId + index + 1, // Offset ID
+  status: "pending" as const,
+  type: StepType.CreateFile,
+}));
+
+setSteps((s) => [...s, ...newSteps]);
+
+   
+    console.log("Updated steps:", stepsArray2);
+  }
 
   useEffect(() => {
     backendPrompt(prompt)
   }, [])
 
-  // useEffect(() => {
-  //   // Simulate step progression
-  //   const timer = setInterval(() => {
-  //     setSteps((prevSteps) => {
-  //       const newSteps = [...prevSteps]
-  //       const inProgressIndex = newSteps.findIndex((step) => step.status === "in-progress")
-  //       const pendingIndex = newSteps.findIndex((step) => step.status === "pending")
+  useEffect(() => {
+    const pendingSteps = steps.filter(({ status }) => status === "pending");
+    if (pendingSteps.length === 0) return;
+  
+    let originalFiles = [...files];
+  
+    pendingSteps.forEach(step => {
+      if (step?.type === StepType.CreateFile) {
+        let parsedPath = step.path?.split("/") ?? [];
+        let currentFileStructure = [...originalFiles];
+        let finalAnswerRef = currentFileStructure;
+  
+        let currentFolder = "";
+        while (parsedPath.length) {
+          currentFolder = `${currentFolder}/${parsedPath[0]}`;
+          const currentFolderName = parsedPath[0];
+          parsedPath = parsedPath.slice(1);
+  
+          if (!parsedPath.length) {
+            const file = currentFileStructure.find(x => x.path === currentFolder);
+            if (!file) {
+              currentFileStructure.push({
+                name: currentFolderName,
+                type: 'file',
+                path: currentFolder,
+                content: step.code,
+              });
+            } else {
+              file.content = step.code;
+            }
+          } else {
+            let folder = currentFileStructure.find(x => x.path === currentFolder);
+            if (!folder) {
+              currentFileStructure.push({
+                name: currentFolderName,
+                type: 'folder',
+                path: currentFolder,
+                children: [],
+              });
+            }
+  
+            currentFileStructure = currentFileStructure.find(x => x.path === currentFolder)!.children!;
+          }
+        }
+  
+        originalFiles = finalAnswerRef;
+      }
+    });
+  
+    setFiles(originalFiles);
+    setSteps(steps => steps.map((s: Step) => ({
+      ...s,
+      status: "completed",
+    })));
+  
+    // optional: log to check once
+    console.log("Updated files", originalFiles);
+  }, [steps]);
+  
 
-  //       if (inProgressIndex !== -1) {
-  //         newSteps[inProgressIndex].status = "completed"
+  useEffect(() => {
+    const createMountStructure = (files: FileItem[]): Record<string, any> => {
+      const mountStructure: Record<string, any> = {};
+  
+      const processFile = (file: FileItem, isRootFolder: boolean) => {  
+        if (file.type === 'folder') {
+          // For folders, create a directory entry
+          mountStructure[file.name] = {
+            directory: file.children ? 
+              Object.fromEntries(
+                file.children.map(child => [child.name, processFile(child, false)])
+              ) 
+              : {}
+          };
+        } else if (file.type === 'file') {
+          if (isRootFolder) {
+            mountStructure[file.name] = {
+              file: {
+                contents: file.content || ''
+              }
+            };
+          } else {
+            // For files, create a file entry with contents
+            return {
+              file: {
+                contents: file.content || ''
+              }
+            };
+          }
+        }
+  
+        return mountStructure[file.name];
+      };
+  
+      // Process each top-level file/folder
+      files.forEach(file => processFile(file, true));
+  
+      return mountStructure;
+    };
+  
+    const mountStructure = createMountStructure(files);
+  
+    // Mount the structure if WebContainer is available
+    console.log(mountStructure);
+    webcontainer?.mount(mountStructure);
+  }, [files, webcontainer]);
 
-  //         if (pendingIndex !== -1) {
-  //           newSteps[pendingIndex].status = "in-progress"
-  //         }
-  //       }
+  useEffect(() => { 
+    // Simulate step progression
+    const timer = setInterval(() => {
+      setSteps((prevSteps) => {
+        const newSteps = [...prevSteps]
+        const inProgressIndex = newSteps.findIndex((step) => step.status === "in-progress")
+        const pendingIndex = newSteps.findIndex((step) => step.status === "pending")
 
-  //       return newSteps
-  //     })
+        if (inProgressIndex !== -1) {
+          newSteps[inProgressIndex].status = "completed"
 
-  //     setProgress((prev) => Math.min(prev + 15, 100))
-  //   }, 3000)
+          if (pendingIndex !== -1) {
+            newSteps[pendingIndex].status = "in-progress"
+          }
+        }
 
-  //   return () => clearInterval(timer)
-  // }, [])
+        return newSteps
+      })
+
+      setProgress((prev) => Math.min(prev + 15, 100))
+    }, 3000)
+
+    return () => clearInterval(timer)
+  }, [steps])
 
   const completedSteps = steps.filter((step) => step.status === "completed").length
   const totalSteps = steps.length
 
-  
+
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -559,7 +695,7 @@ module.exports = nextConfig`,
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
+        <div className="grid lg:grid-cols-[27%_73%] gap-6 h-[calc(100vh-140px)]">
           {/* Left Panel - Steps */}
           <Card className="flex flex-col bg-gray-800 border-gray-700">
             <CardHeader>
@@ -575,42 +711,40 @@ module.exports = nextConfig`,
               </div>
             </CardHeader>
             <CardContent className="flex-1">
-            <ScrollArea className="h-full">
-  {loading ? (
-    <p className="text-gray-400">Loading steps...</p>
-  ) : steps.length > 0 ? (
-    <div className="space-y-4">
-      {steps.map((step) => (
-        <div key={step.id} className="flex gap-3">
-          <div className="flex flex-col items-center">
-            {step.status === "completed" ? (
-              <CheckCircle className="h-6 w-6 text-green-400" />
-            ) : step.status === "in-progress" ? (
-              <Clock className="h-6 w-6 text-blue-400 animate-spin" />
-            ) : (
-              <Circle className="h-6 w-6 text-gray-600" />
-            )}
-          </div>
-          <div className="flex-1 pb-4">
-            <h3 className="font-medium text-white">{step.title}</h3>
-            
-          </div>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <p className="text-gray-400">No steps to show</p>
-  )}
-</ScrollArea>
-</CardContent>
-
+              <ScrollArea className="h-full">
+                {loading ? (
+                  <p className="text-gray-400">Loading steps...</p>
+                ) : steps.length > 0 ? (
+                  <div className="space-y-4">
+                    {steps.map((step) => (
+                      <div key={step.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          {step.status === "completed" ? (
+                            <CheckCircle className="h-6 w-6 text-green-400" />
+                          ) : step.status === "in-progress" ? (
+                            <Clock className="h-6 w-6 text-blue-400 animate-spin" />
+                          ) : (
+                            <Circle className="h-6 w-6 text-gray-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <h3 className="font-medium text-white">{step.title}</h3>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400">No steps to show</p>
+                )}
+              </ScrollArea>
+            </CardContent>
           </Card>
 
           {/* Right Panel - Code Editor and Preview */}
           <div className="flex flex-col">
             <Tabs defaultValue="code" className="flex-1 flex flex-col">
               <div className="bg-gray-800 border border-gray-700 rounded-t-lg">
-                <TabsList className="grid w-full grid-cols-2 bg-gray-800 border-b border-gray-700">
+                <TabsList className="grid w-full gap-2 grid-cols-2 bg-gray-800 border-b border-gray-700">
                   <TabsTrigger value="code" className="data-[state=active]:bg-gray-700 text-gray-300">
                     Code
                   </TabsTrigger>
@@ -621,48 +755,81 @@ module.exports = nextConfig`,
               </div>
 
               <TabsContent value="code" className="flex-1 mt-0">
-                <div className="grid grid-cols-5 h-[calc(100vh-200px)]">
+                <div className="grid grid-cols-10 h-[calc(100vh-200px)]">
                   {/* File Explorer */}
-                  <Card className="col-span-2 bg-gray-800 border-gray-700 rounded-none border-r">
+                  <Card className="col-span-3 bg-gray-800 border-gray-700 rounded-none border-r">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg text-white">Project Files</CardTitle>
-                      <p className="text-sm text-gray-400">Click on files to view code</p>
+                      <CardTitle className="text-lg text-white">File Explorer</CardTitle>
+                      <p className="text-sm text-gray-400">Browse your project files</p>
                     </CardHeader>
                     <CardContent className="flex-1">
                       <ScrollArea className="h-full">
-                        <FileTreeNode
-                          node={fileStructure}
-                          setSelectedFile={setSelectedFile}
-                          selectedFile={selectedFile}
+                        {files.length > 0 ? (
+                          <FileExplorer 
+                          files={files} 
+                          onFileSelect={setSelectedFile}
                         />
+                        ) : (
+                          <p className="text-gray-400">No files available</p>
+                        )}
                       </ScrollArea>
                     </CardContent>
-                  </Card>
-
-                  {/* Monaco Editor */}
-                  <div className="col-span-3 bg-gray-900 border-gray-700">
-                    <div className="h-full flex flex-col">
-                      <div className="bg-gray-800 px-4 py-2 border-b border-gray-700">
-                        <span className="text-sm text-gray-300">{selectedFile}</span>
-                      </div>
-                      <div className="flex-1">
-                        <Editor
-                          height="100%"
-                          language={getLanguageFromFile(selectedFile)}
-                          theme="vs-dark"
-                          value={fileContents[selectedFile] || "// File content loading..."}
-                          options={{
-                            readOnly: true,
-                            minimap: { enabled: false },
-                            fontSize: 14,
-                            lineNumbers: "on",
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                          }}
-                        />
-                      </div>
+                  </Card> 
+                  
+                    
+                  {/* <div className="col-span-7 bg-gray-900 border-gray-700">
+                  <div className="h-full flex flex-col">
+  
+   <div className="bg-gray-800 px-4 py-2 border-b border-gray-700">
+     <span className="text-sm text-gray-300">{selectedFile || "No file selected"}</span>
+   </div>
+                    
+                    <CodeEditor file={files.find(f => f.path === selectedFile) || null} />
                     </div>
-                  </div>
+                    </div> */}
+                  
+                   
+                  
+                  <div className="col-span-7 bg-gray-900 border-gray-700">
+  <div className="h-full flex flex-col">
+   
+    <div className="bg-gray-800 px-4 py-2 border-b border-gray-700">
+      <span className="text-sm text-gray-300">{selectedFile?.name || "No file selected"}</span>
+    </div>
+
+    
+    <div className="flex-1 min-h-[400px]">
+      {/* {(() => {
+        const file = files.find((file) => file.path.replaceAll("/", "") === selectedFile);
+        console.log("✅ selectedFile:", selectedFile);
+        console.log("✅ matched file:", file,file?.content);
+        console.log("🔍 All file paths:", files.map(f => f.path));
+
+        return selectedFile ? (
+          <Editor
+            key={selectedFile} // Important: force re-render on file change
+            height="100%"
+            language={getLanguageFromFile(selectedFile)}
+            theme="vs-dark"
+            value={file?.content || "// Content not found for this file."}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              fontSize: 14,
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+            }}
+          />
+        ) : (
+          <div className="text-gray-400 p-4">// Please select a file to view its content.</div>
+        );
+      })()} */}
+
+<CodeEditor file={selectedFile} />
+    </div>
+  </div>
+</div>
                 </div>
               </TabsContent>
 
@@ -674,21 +841,21 @@ module.exports = nextConfig`,
                   </CardHeader>
                   <CardContent className="flex-1 p-0">
                     <div className="h-full bg-white rounded-lg overflow-hidden">
-                      <iframe
-                        src="data:text/html;charset=utf-8,%3C!DOCTYPE%20html%3E%3Chtml%3E%3Chead%3E%3Cstyle%3Ebody%7Bmargin%3A0%3Bfont-family%3A-apple-system%2CBlinkMacSystemFont%2C%27Segoe%20UI%27%2CRoboto%2Csans-serif%3Bbackground%3Alinear-gradient(135deg%2C%23667eea%200%25%2C%23764ba2%20100%25)%3Bcolor%3Awhite%3B%7D.hero%7Bheight%3A100vh%3Bdisplay%3Aflex%3Balign-items%3Acenter%3Bjustify-content%3Acenter%3Btext-align%3Acenter%3B%7D.hero%20h1%7Bfont-size%3A4rem%3Bmargin-bottom%3A1rem%3Bbackground%3Alinear-gradient(45deg%2C%23ff6b6b%2C%234ecdc4)%3B-webkit-background-clip%3Atext%3B-webkit-text-fill-color%3Atransparent%3B%7D.hero%20p%7Bfont-size%3A1.5rem%3Bmargin-bottom%3A2rem%3Bopacity%3A0.9%3B%7D.btn%7Bbackground%3A%23ff6b6b%3Bcolor%3Awhite%3Bpadding%3A12px%2024px%3Bborder%3Anone%3Bborder-radius%3A8px%3Bfont-size%3A1.1rem%3Bcursor%3Apointer%3Btransition%3Atransform%200.2s%3B%7D.btn%3Ahover%7Btransform%3AtranslateY(-2px)%3B%7D%3C/style%3E%3C/head%3E%3Cbody%3E%3Cdiv%20class%3D%22hero%22%3E%3Cdiv%3E%3Ch1%3EJohn%20Doe%3C/h1%3E%3Cp%3EGraphic%20Designer%20%26%20Creative%20Artist%3C/p%3E%3Cbutton%20class%3D%22btn%22%3EView%20My%20Work%3C/button%3E%3C/div%3E%3C/div%3E%3C/body%3E%3C/html%3E"
-                        className="w-full h-full border-0"
-                        title="Website Preview"
-                      />
+                    {webcontainer && <PreviewFrame webContainer={webcontainer} files={files} />}
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+                </TabsContent>
             </Tabs>
           </div>
         </div>
+      </div>
+    </div>
 
-        {/* Prompt Display */}
-        {/* {prompt && (
+  
+
+        
+        /* {prompt && (
           <Card className="mt-6 bg-gray-800 border-gray-700">
             <CardHeader>
               <CardTitle className="text-lg text-white">Your Requirements</CardTitle>
@@ -697,8 +864,8 @@ module.exports = nextConfig`,
               <p className="text-gray-300 leading-relaxed">{prompt}</p>
             </CardContent>
           </Card>
-        )} */}
-      </div>
-    </div>
+        )} */
+      
+    
   )
 }
