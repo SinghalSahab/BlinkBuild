@@ -503,7 +503,7 @@ module.exports = nextConfig`,
     
 
 const stepsArray2 = Object.values(parseXml(dat.response));
-let lastId = stepsArray.length;
+const lastId = stepsArray.length;
 const newSteps = stepsArray2.map((step, index) => ({
   ...step,
   id: lastId + index + 1, // Offset ID
@@ -531,7 +531,7 @@ setSteps((s) => [...s, ...newSteps]);
       if (step?.type === StepType.CreateFile) {
         let parsedPath = step.path?.split("/") ?? [];
         let currentFileStructure = [...originalFiles];
-        let finalAnswerRef = currentFileStructure;
+        const finalAnswerRef = currentFileStructure;
   
         let currentFolder = "";
         while (parsedPath.length) {
@@ -552,7 +552,7 @@ setSteps((s) => [...s, ...newSteps]);
               file.content = step.code;
             }
           } else {
-            let folder = currentFileStructure.find(x => x.path === currentFolder);
+            const folder = currentFileStructure.find(x => x.path === currentFolder);
             if (!folder) {
               currentFileStructure.push({
                 name: currentFolderName,
