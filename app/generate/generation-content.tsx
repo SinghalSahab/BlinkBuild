@@ -30,7 +30,7 @@ import { parseXml } from "../lib/steps"
 import { CodeEditor } from "@/components/CodeEditor"
 import { FileExplorer } from "@/components/FileExplorer"
 import { useWebContainer } from "@/hooks/useWebcontainers"
-import { FileNode } from "@webcontainer/api"
+
 import { PreviewFrame } from "@/components/PreviewFrame"
 
 
@@ -477,7 +477,7 @@ module.exports = nextConfig`,
     const stepsArray = Object.values(xml);
     
     setSteps(stepsArray);
-    console.log("Parsed steps:", steps);
+    // console.log("Parsed steps:", steps);
     setLoading(false);
 
     const uiMessages: PromptMessage[] = (data.uiPrompts || []).map((p: string) => ({
@@ -506,7 +506,7 @@ const stepsArray2 = Object.values(parseXml(dat.response));
 const lastId = stepsArray.length;
 const newSteps = stepsArray2.map((step, index) => ({
   ...step,
-  id: lastId + index + 1, // Offset ID
+  id: lastId + index + 2, // Offset ID
   status: "pending" as const,
   type: StepType.CreateFile,
 }));
@@ -514,7 +514,10 @@ const newSteps = stepsArray2.map((step, index) => ({
 setSteps((s) => [...s, ...newSteps]);
 
    
-    console.log("Updated steps:", stepsArray2);
+    // console.log("Updated steps:", stepsArray2);
+    // console.log("New Steps:", newSteps);
+    // console.log("All steps:", steps);
+    
   }
 
   useEffect(() => {

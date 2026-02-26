@@ -1,4 +1,4 @@
-import { BASE_PROMPT, getSystemPrompt } from "@/app/lib/prompt";
+import {  getSystemPrompt } from "@/app/lib/prompt";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 

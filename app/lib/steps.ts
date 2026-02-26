@@ -69,7 +69,7 @@ export enum StepType {
         });
       }
     }
-    console.log("Parsed steps be:", steps);
+    //console.log("Parsed steps be:", steps);
     return steps;
   }
   
