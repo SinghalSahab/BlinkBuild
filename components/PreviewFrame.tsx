@@ -44,14 +44,31 @@ export function PreviewFrame({ files, webContainer }: PreviewFrameProps) {
   }, [webContainer]);
 
   return (
-    <div className="h-full flex items-center justify-center text-gray-900">
-      {!url ? (
-        <div className="text-center">
-          <p className="mb-2">Loading...</p>
-        </div>
-      ) : (
-        <iframe width="100%" height="100%" src={url} />
-      )}
+    <div className="h-full flex items-center justify-center bg-gray-50">
+  {!url ? (
+    <div className="flex flex-col items-center gap-4">
+      
+      {/* Spinner */}
+      <div className="w-12 h-12 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+
+      {/* Animated text */}
+      <p className="text-gray-700 text-lg font-medium animate-pulse">
+        Starting Dev Server...
+      </p>
+
+      {/* Subtext */}
+      <p className="text-gray-500 text-sm">
+        This may take a few seconds
+      </p>
+
     </div>
+  ) : (
+    <iframe
+      className="w-full h-full border-0"
+      src={url}
+      title="preview"
+    />
+  )}
+</div>
   );
 }

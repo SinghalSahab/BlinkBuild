@@ -25,7 +25,7 @@ import {
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
-
+import axios from "axios"
 import { parseXml } from "../lib/steps"
 import { CodeEditor } from "@/components/CodeEditor"
 import { FileExplorer } from "@/components/FileExplorer"
@@ -64,84 +64,6 @@ interface Step {
 }
 
 
-
-// const initialSteps: Step[] = [
-//   {
-//     id: 1,
-//     title: "Analyzing Requirements",
-//     description: "Processing your website description and extracting key requirements",
-//     status: "completed",
-//     duration: "2s",
-//   },
-//   {
-//     id: 2,
-//     title: "Generating Structure",
-//     description: "Creating the website architecture and component structure",
-//     status: "completed",
-//     duration: "3s",
-//   },
-//   {
-//     id: 3,
-//     title: "Writing Components",
-//     description: "Generating React components and page layouts",
-//     status: "in-progress",
-//   },
-//   {
-//     id: 4,
-//     title: "Styling & Design",
-//     description: "Applying styles and responsive design patterns",
-//     status: "pending",
-//   },
-//   {
-//     id: 5,
-//     title: "Optimization",
-//     description: "Optimizing performance and adding practices",
-//     status: "pending",
-//   },
-//   {
-//     id: 6,
-//     title: "Final Review",
-//     description: "Running final checks and preparing for deployment",
-//     status: "pending",
-//   },
-// ]
-
-// const fileStructure: FileNode = {
-//   name: "my-website",
-//   type: "folder",
-//   children: [
-//     {
-//       name: "app",
-//       type: "folder",
-//       children: [
-//         { name: "layout.tsx", type: "file", size: "2.1 KB", modified: "2 min ago" },
-//         { name: "page.tsx", type: "file", size: "4.3 KB", modified: "1 min ago" },
-//         { name: "globals.css", type: "file", size: "1.8 KB", modified: "3 min ago" },
-//         {
-//           name: "components",
-//           type: "folder",
-//           children: [
-//             { name: "hero.tsx", type: "file", size: "3.2 KB", modified: "1 min ago" },
-//             { name: "about.tsx", type: "file", size: "2.8 KB", modified: "2 min ago" },
-//             { name: "gallery.tsx", type: "file", size: "4.1 KB", modified: "1 min ago" },
-//             { name: "contact.tsx", type: "file", size: "2.5 KB", modified: "2 min ago" },
-//           ],
-//         },
-//       ],
-//     },
-//     {
-//       name: "public",
-//       type: "folder",
-//       children: [
-//         { name: "favicon.ico", type: "file", size: "4.2 KB", modified: "5 min ago" },
-//         { name: "logo.png", type: "file", size: "12.3 KB", modified: "5 min ago" },
-//       ],
-//     },
-//     { name: "package.json", type: "file", size: "1.2 KB", modified: "5 min ago" },
-//     { name: "tailwind.config.js", type: "file", size: "0.8 KB", modified: "4 min ago" },
-//     { name: "next.config.js", type: "file", size: "0.3 KB", modified: "5 min ago" },
-//   ],
-// }
 
 function FileIcon({ type, name }: { type: string; name: string }) {
   if (type === "folder") return <Folder className="h-4 w-4 text-[#00FF88]" />
@@ -244,6 +166,9 @@ function getLanguageFromFile(filename: string): string {
   return "plaintext"
 }
 
+let stepCounter = Date.now();
+const nextId = () => ++stepCounter;
+
 export default function GenerationContent() {
   const searchParams = useSearchParams()
   const prompt = searchParams.get("prompt") || ""
@@ -253,7 +178,8 @@ export default function GenerationContent() {
   const [progress, setProgress] = useState(40);
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState<FileItem[]>([]);
-
+  const [userPrompt, setpromt] = useState<string>("");
+  const [llmMessages, setLlmMessages] = useState<PromptMessage[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileContents] = useState<Record<string, string>>({
     "app/layout.tsx": `import type { Metadata } from 'next'
@@ -454,71 +380,67 @@ const nextConfig = {}
 module.exports = nextConfig`,
   })
 
- 
-  async function backendPrompt(prompt: string) {
-    const res = await fetch("/api/template", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt }),
-    });
-    console.log("Response from /api/template:", res);
-    const data = await res.json();
-    console.log("Received data:", data);
+ // ✅ Utility — call this whenever you need a batch of unique IDs
 
-    if (!data || !data.prompts || !data.prompts.length) {
-      throw new Error("No prompts received from the server");
+  
+    async function backendPrompt(prompt: string) {
+      
+    
+      const res = await fetch("/api/template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      console.log("RAW API RESPONSE:", JSON.stringify(data, null, 2));
+    
+      if (!data?.prompts?.length) throw new Error("No prompts received from the server");
+    
+      const promptai: string[] = data.prompts;
+      const uiprompts: string = data.uiPrompts[0];
+    
+      // ✅ Step 2: append ui prompt steps with unique ids
+      setSteps(s => [...s, ...parseXml(uiprompts).map((x: Step) => ({
+        ...x,
+        id: nextId(),
+        status: "pending" as const,
+      }))]);
+    
+      const uiMessages: PromptMessage[] = data.uiPrompts.map((p: string) => ({
+        role: "user" as const,
+        content: p,
+      }));
+    
+      const messages = [
+        ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
+        ...uiMessages,
+        { role: "user" as const, content: prompt },
+      ];
+    
+      const result = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      const dat = await result.json();
+    
+      // ✅ Step 3: append LLM response steps with unique ids
+      setSteps(s => [...s, ...parseXml(dat.response).map((x: Step) => ({
+        ...x,
+        id: nextId(),
+        status: "pending" as const,
+      }))]);
+    
+      setLlmMessages([
+        ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
+        ...uiMessages,
+        { role: "user" as const, content: prompt },
+        { role: "assistant" as const, content: dat.response },
+      ]);
+    
+      setLoading(false);
     }
-
-    const promptai = data.prompts;
-    console.log("Prompt AI:", promptai);
-
-    const uiprompts = data.uiPrompts[0];
-    const xml = parseXml(uiprompts);
-    const stepsArray = Object.values(xml);
-    
-    setSteps(stepsArray);
-    // console.log("Parsed steps:", steps);
-    setLoading(false);
-
-    const uiMessages: PromptMessage[] = (data.uiPrompts || []).map((p: string) => ({
-      role: "user",
-      content: p,
-    }));
-
-    const messages = [
-      ...promptai.map((p: string) => ({ role: "user", content: p })),
-      ...uiMessages,
-      { role: "user", content: prompt },
-    ];
-    const result = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
-    });
-
-    console.log("Result from /api/chat:", result);
-    const dat = await result.json();
-    console.log("Data from /api/chat:", dat);
-
-    
-
-const stepsArray2 = Object.values(parseXml(dat.response));
-const lastId = stepsArray.length;
-const newSteps = stepsArray2.map((step, index) => ({
-  ...step,
-  id: lastId + index + 2, // Offset ID
-  status: "pending" as const,
-  type: StepType.CreateFile,
-}));
-
-setSteps((s) => [...s, ...newSteps]);
-
-   
-    // console.log("Updated steps:", stepsArray2);
-    // console.log("New Steps:", newSteps);
-    // console.log("All steps:", steps);
-    
-  }
+  
 
   useEffect(() => {
     backendPrompt(prompt)
@@ -529,10 +451,16 @@ setSteps((s) => [...s, ...newSteps]);
     if (pendingSteps.length === 0) return;
   
     let originalFiles = [...files];
+    let updateHappened = false;
   
     pendingSteps.forEach(step => {
+      updateHappened = true;
       if (step?.type === StepType.CreateFile) {
-        let parsedPath = step.path?.split("/") ?? [];
+        // ✅ Fix: strip leading slash and src/
+        let parsedPath = step.path
+          ?.replace(/^\//, "")
+          .split("/") ?? [];
+  
         let currentFileStructure = [...originalFiles];
         const finalAnswerRef = currentFileStructure;
   
@@ -564,7 +492,6 @@ setSteps((s) => [...s, ...newSteps]);
                 children: [],
               });
             }
-  
             currentFileStructure = currentFileStructure.find(x => x.path === currentFolder)!.children!;
           }
         }
@@ -573,14 +500,13 @@ setSteps((s) => [...s, ...newSteps]);
       }
     });
   
-    setFiles(originalFiles);
-    setSteps(steps => steps.map((s: Step) => ({
-      ...s,
-      status: "completed",
-    })));
-  
-    // optional: log to check once
-    console.log("Updated files", originalFiles);
+    if (updateHappened) {
+      setFiles(originalFiles);
+      setSteps(steps => steps.map((s: Step) => ({
+        ...s,
+        status: "completed"
+      })));
+    }
   }, [steps]);
   
 
@@ -627,7 +553,7 @@ setSteps((s) => [...s, ...newSteps]);
     const mountStructure = createMountStructure(files);
   
     // Mount the structure if WebContainer is available
-    console.log(mountStructure);
+    //console.log(mountStructure);
     webcontainer?.mount(mountStructure);
   }, [files, webcontainer]);
 
@@ -654,11 +580,11 @@ setSteps((s) => [...s, ...newSteps]);
     }, 3000)
 
     return () => clearInterval(timer)
-  }, [steps])
+  }, [])
 
   const completedSteps = steps.filter((step) => step.status === "completed").length
   const totalSteps = steps.length
-
+ console.log("Steps:", steps);
 
 
   return (
@@ -740,6 +666,47 @@ setSteps((s) => [...s, ...newSteps]);
                   <p className="text-gray-400">No steps to show</p>
                 )}
               </ScrollArea>
+              <div className="">
+              <textarea
+  className="w-full p-4 mt-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none shadow-sm"
+  placeholder="Enter your text here" onChange={(e)=> setpromt(e.target.value)}>
+                 
+                   </textarea> 
+                   <button
+  onClick={async () => {
+    const newMessage = {
+      role: "user" as "user",
+      content: userPrompt
+    };
+    setLoading(true);
+    const messages = [...llmMessages, newMessage].map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+    const stepsResponse = await fetch(`api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+      
+    });
+    const newResult = await stepsResponse.json();
+    setLoading(false);
+    setLlmMessages(x => [...x, newMessage]);
+    setLlmMessages(x => [...x, {
+      role: "assistant",
+      content:  newResult.response
+    }]);
+    setSteps(s => [...s, ...parseXml(newResult.response).map(x => ({
+      ...x,
+      id: nextId(),
+      status: "pending" as "pending"
+    }))]);
+  }}
+  className='bg-purple-400 px-4'
+>
+  Send
+</button>
+              </div>
             </CardContent>
           </Card>
 
