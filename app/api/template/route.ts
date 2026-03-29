@@ -7,13 +7,17 @@ import { BASE_PROMPT } from "@/app/lib/prompt";
 
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_API_KEY!);
+const model = genAI.getGenerativeModel({ 
+  model: "gemini-2.5-flash",
+  systemInstruction:BASE_PROMPT
+ });
 
 export async function POST(req: NextRequest) {
     try{
     const body = await req.json();
     const prompt = body.prompt;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
 
     const result = await model.generateContent({
         contents: [
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
             role: "user",
             parts: [
               {
-                text: `System: Return either node or react based on what do you think this project should be. Only return a single word either 'node' or 'react'. Do not return anything extra.\n\nUser: ${prompt}`,
+                text: `Return either node or react based on what do you think this project should be. Only return a single word either 'node' or 'react'. Do not return anything extra.\n\nUser: ${prompt}`,
               },
             ],
           },
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-      const answer = result?.response?.candidates[0]?.content.parts[0].text;
+      const answer = result?.response?.candidates[0]?.content.parts[0].text?.trim();
 
     console.log("Answer from Gemini:", answer);
     if (answer === "react") {

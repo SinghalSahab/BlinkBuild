@@ -2,12 +2,15 @@ import {  getSystemPrompt } from "@/app/lib/prompt";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 
+const systemPrompt = getSystemPrompt();
+
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_API_KEY!);
 const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash" // or "gemini-2.5-flash" if you want faster but lighter responses
+    model: "gemini-2.5-flash", // or "gemini-2.5-flash" if you want faster but lighter responses
+    systemInstruction: systemPrompt
   });
   
-  const systemPrompt = getSystemPrompt();
+
   
 
 export async function POST(req: NextRequest) {
@@ -17,12 +20,7 @@ export async function POST(req: NextRequest) {
         const messages = body.messages;
         const contents = [];
 
-        if (systemPrompt) {
-          contents.push({
-            role: "user",
-            parts: [{ text: systemPrompt }]
-          });
-        }
+        
 
         for (const msg of messages) {
             contents.push({
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
       response: output
     });
   } catch (error) {
-    console.error("Error in /template route:", error);
+    console.error("Error in /chat route:", error);
     return NextResponse.json(
       { message: "Server error", error: error },
       { status: 500 }

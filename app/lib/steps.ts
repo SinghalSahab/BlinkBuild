@@ -19,6 +19,7 @@ export enum StepType {
 
 
   export function parseXml(response: string): Step[] {
+    if (!response) return [];
     const artifactRegex = /<boltArtifact[^>]*>([\s\S]*?)<\/boltArtifact>/;
     const artifactMatch = response.match(artifactRegex);
   
