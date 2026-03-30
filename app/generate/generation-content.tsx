@@ -17,14 +17,15 @@ import {
   FolderOpen,
   ImageIcon,
   Download,
-  Play,
   Settings,
   ChevronRight,
   ChevronDown,
+  Sparkles,
+  Share2,
 } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { parseXml } from "../lib/steps"
 import { CodeEditor } from "@/components/CodeEditor"
 import { FileExplorer } from "@/components/FileExplorer"
@@ -145,22 +146,80 @@ function FileTreeNode({
   )
 }
 
+// ── Download helper ──
+function downloadFilesAsZip(files: FileItem[]) {
+  // Flatten all files to path -> content
+  const allFiles: { path: string; content: string }[] = []
+  const flatten = (items: FileItem[], prefix = "") => {
+    items.forEach(item => {
+      if (item.type === "file") {
+        allFiles.push({ path: prefix + item.name, content: item.content || "" })
+      } else if (item.type === "folder" && item.children) {
+        flatten(item.children, prefix + item.name + "/")
+      }
+    })
+  }
+  flatten(files)
+
+  // Build a simple text blob of all files (no JSZip dep needed)
+  const content = allFiles.map(f =>
+    `${"=".repeat(60)}\nFILE: ${f.path}\n${"=".repeat(60)}\n${f.content}`
+  ).join("\n\n")
+
+  const blob = new Blob([content], { type: "text/plain" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "blinkbuild-project.txt"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function GenerationContent() {
   const searchParams = useSearchParams()
   const prompt = searchParams.get("prompt") || ""
   const webcontainer = useWebContainer()
 
   const [steps, setSteps] = useState<Step[]>([])
+  const [visibleSteps, setVisibleSteps] = useState<Step[]>([])  // ✅ steps revealed one-by-one
   const [progress, setProgress] = useState(0)
   const [loading, setLoading] = useState(true)
   const [files, setFiles] = useState<FileItem[]>([])
   const [userPrompt, setUserPrompt] = useState<string>("")
   const [llmMessages, setLlmMessages] = useState<PromptMessage[]>([])
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null)
+  const [isReady, setIsReady] = useState(false)           // ✅ "site is ready" banner
+  const [templateDone, setTemplateDone] = useState(false) // ✅ phase tracking
+  const [chatDone, setChatDone] = useState(false)         // ✅ phase tracking
+  const [headerStatus, setHeaderStatus] = useState("Generating your website...")
+  const stepsEndRef = useRef<HTMLDivElement>(null)
+  const revealQueueRef = useRef<Step[]>([])
+  const revealTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── ALL LOGIC BELOW IS UNTOUCHED ──
+  // ✅ Gradually reveal steps one-by-one from queue
+  const startRevealQueue = () => {
+    if (revealTimerRef.current) return
+    revealTimerRef.current = setInterval(() => {
+      if (revealQueueRef.current.length === 0) {
+        if (revealTimerRef.current) clearInterval(revealTimerRef.current)
+        revealTimerRef.current = null
+        return
+      }
+      const next = revealQueueRef.current.shift()!
+      setVisibleSteps(v => [...v, next])
+      stepsEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }, 350)
+  }
+
+  const enqueueSteps = (newSteps: Step[]) => {
+    revealQueueRef.current.push(...newSteps)
+    startRevealQueue()
+  }
+
+  // ── CORE LOGIC (unchanged) ──
 
   async function backendPrompt(prompt: string) {
+    setHeaderStatus("Analyzing your prompt...")
     const res = await fetch("/api/template", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -174,11 +233,15 @@ export default function GenerationContent() {
     const promptai: string[] = data.prompts
     const uiprompts: string = data.uiPrompts[0]
 
-    setSteps(parseXml(uiprompts).map((x: Step) => ({
+    const templateSteps = parseXml(uiprompts).map((x: Step) => ({
       ...x,
       id: nextId(),
       status: "pending" as const,
-    })))
+    }))
+    setSteps(templateSteps)
+    enqueueSteps(templateSteps)
+    setTemplateDone(true)
+    setHeaderStatus("Building your website...")
 
     const uiMessages: PromptMessage[] = data.uiPrompts.map((p: string) => ({
       role: "user" as const,
@@ -202,12 +265,15 @@ export default function GenerationContent() {
     const chatResponse: string = dat.response ?? dat.content ?? dat.message ?? ""
 
     if (chatResponse) {
-      setSteps(s => [...s, ...parseXml(chatResponse).map((x: Step) => ({
+      const chatSteps = parseXml(chatResponse).map((x: Step) => ({
         ...x,
         id: nextId(),
         status: "pending" as const,
-      }))])
+      }))
+      setSteps(s => [...s, ...chatSteps])
+      enqueueSteps(chatSteps)
     }
+
     setLlmMessages([
       ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
       ...uiMessages,
@@ -215,13 +281,27 @@ export default function GenerationContent() {
       { role: "model" as const, content: chatResponse },
     ])
 
+    setChatDone(true)
     setLoading(false)
+    setHeaderStatus("Your website is ready!")
   }
 
   useEffect(() => {
     backendPrompt(prompt)
+    return () => {
+      if (revealTimerRef.current) clearInterval(revealTimerRef.current)
+    }
   }, [])
 
+  // ✅ Show ready banner when both done and all steps visible
+  useEffect(() => {
+    if (chatDone && !loading && visibleSteps.length > 0) {
+      const t = setTimeout(() => setIsReady(true), 800)
+      return () => clearTimeout(t)
+    }
+  }, [chatDone, loading, visibleSteps.length])
+
+  // ── Process pending steps into file structure (unchanged) ──
   useEffect(() => {
     const pendingSteps = steps.filter(({ status }) => status === "pending")
     if (pendingSteps.length === 0) return
@@ -280,9 +360,11 @@ export default function GenerationContent() {
     if (updateHappened) {
       setFiles(originalFiles)
       setSteps(steps => steps.map((s: Step) => ({ ...s, status: "completed" })))
+      setVisibleSteps(v => v.map(s => ({ ...s, status: "completed" })))
     }
   }, [steps])
 
+  // ── Mount files into WebContainer (unchanged) ──
   useEffect(() => {
     const createMountStructure = (files: FileItem[]): Record<string, any> => {
       const mountStructure: Record<string, any> = {}
@@ -318,31 +400,19 @@ export default function GenerationContent() {
     webcontainer?.mount(mountStructure)
   }, [files, webcontainer])
 
+  // ✅ Progress tied to actual visible steps completion — stops at 100 only when done
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSteps(prevSteps => {
-        const newSteps = [...prevSteps]
-        const inProgressIndex = newSteps.findIndex(step => step.status === "in-progress")
-        const pendingIndex = newSteps.findIndex(step => step.status === "pending")
+    if (visibleSteps.length === 0) return
+    const completed = visibleSteps.filter(s => s.status === "completed").length
+    const total = visibleSteps.length
+    const pct = chatDone
+      ? Math.round((completed / total) * 100)
+      : Math.min(Math.round((completed / total) * 85), 85) // cap at 85 until chat done
+    setProgress(pct)
+  }, [visibleSteps, chatDone])
 
-        if (inProgressIndex !== -1) {
-          newSteps[inProgressIndex].status = "completed"
-          if (pendingIndex !== -1) {
-            newSteps[pendingIndex].status = "in-progress"
-          }
-        }
-        return newSteps
-      })
-      setProgress(prev => Math.min(prev + 15, 100))
-    }, 3000)
-
-    return () => clearInterval(timer)
-  }, [])
-
-  const completedSteps = steps.filter(step => step.status === "completed").length
-  const totalSteps = steps.length
-
-  // ── ONLY CSS CHANGED BELOW ──
+  const completedSteps = visibleSteps.filter(step => step.status === "completed").length
+  const totalSteps = visibleSteps.length
 
   return (
     <div className="min-h-screen flex flex-col bg-[#050508] text-white">
@@ -400,24 +470,24 @@ export default function GenerationContent() {
           color: rgba(255,255,255,0.8);
           border-color: rgba(255,255,255,0.18);
         }
-        .gen-btn-primary {
-          background: linear-gradient(135deg, #3b82f6, #6366f1);
+        .gen-btn-green {
+          background: linear-gradient(135deg, #059669, #10b981);
           border: none;
           color: white;
           position: relative;
           overflow: hidden;
         }
-        .gen-btn-primary::after {
+        .gen-btn-green::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(135deg, #60a5fa, #818cf8);
+          background: linear-gradient(135deg, #10b981, #34d399);
           opacity: 0;
           transition: opacity 0.2s;
         }
-        .gen-btn-primary:hover::after { opacity: 1; }
-        .gen-btn-primary:hover { box-shadow: 0 0 24px rgba(99,102,241,0.4); }
-        .gen-btn-primary > * { position: relative; z-index: 1; }
+        .gen-btn-green:hover::after { opacity: 1; }
+        .gen-btn-green:hover { box-shadow: 0 0 24px rgba(16,185,129,0.35); }
+        .gen-btn-green > * { position: relative; z-index: 1; }
 
         /* Left panel */
         .gen-left-panel {
@@ -432,9 +502,10 @@ export default function GenerationContent() {
         .gen-panel-header {
           padding: 20px 20px 16px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
         }
 
-        /* Progress bar override */
+        /* Progress bar */
         .gen-progress-track {
           height: 4px;
           border-radius: 999px;
@@ -446,17 +517,36 @@ export default function GenerationContent() {
           height: 100%;
           border-radius: 999px;
           background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-          transition: width 0.5s ease;
+          transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
         }
 
-        /* Step item */
+        /* Steps scroll container — fixed height, scrollable */
+        .gen-steps-scroll {
+          flex: 1;
+          overflow-y: auto;
+          padding: 12px 16px;
+          min-height: 0;
+          max-height: 100%;
+          scroll-behavior: smooth;
+        }
+        .gen-steps-scroll::-webkit-scrollbar { width: 4px; }
+        .gen-steps-scroll::-webkit-scrollbar-track { background: transparent; }
+        .gen-steps-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+
+        /* Step item with entrance animation */
         .gen-step-item {
           display: flex;
           gap: 12px;
           padding: 10px 0;
           border-bottom: 1px solid rgba(255,255,255,0.03);
+          opacity: 0;
+          transform: translateY(8px);
+          animation: stepIn 0.35s ease forwards;
         }
         .gen-step-item:last-child { border-bottom: none; }
+        @keyframes stepIn {
+          to { opacity: 1; transform: translateY(0); }
+        }
 
         /* Send area */
         .gen-send-textarea {
@@ -517,6 +607,7 @@ export default function GenerationContent() {
           padding: 6px;
           display: flex;
           gap: 4px;
+          flex-shrink: 0;
         }
         .gen-tab-trigger {
           flex: 1;
@@ -548,17 +639,27 @@ export default function GenerationContent() {
           border-right: 1px solid rgba(255,255,255,0.05);
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
         .gen-explorer-header {
           padding: 14px 16px 10px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
         }
+        .gen-explorer-scroll {
+          flex: 1;
+          overflow-y: auto;
+          padding: 8px;
+        }
+        .gen-explorer-scroll::-webkit-scrollbar { width: 3px; }
+        .gen-explorer-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 999px; }
 
         /* Code panel */
         .gen-code-panel {
           background: #0a0a0f;
           display: flex;
           flex-direction: column;
+          overflow: hidden;
         }
         .gen-file-tab {
           padding: 8px 16px;
@@ -567,6 +668,7 @@ export default function GenerationContent() {
           display: flex;
           align-items: center;
           gap: 8px;
+          flex-shrink: 0;
         }
 
         /* Preview panel */
@@ -579,8 +681,45 @@ export default function GenerationContent() {
           overflow: hidden;
         }
         .gen-preview-header {
-          padding: 16px 20px;
+          padding: 12px 16px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
+        }
+
+        /* Preview loading screen */
+        .gen-preview-loading {
+          flex: 1;
+          background: #0d0d14;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 20px;
+        }
+        .gen-preview-spinner {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          border: 2px solid rgba(99,102,241,0.15);
+          border-top-color: #6366f1;
+          animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .gen-preview-dots {
+          display: flex;
+          gap: 6px;
+        }
+        .gen-preview-dot {
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: rgba(99,102,241,0.4);
+          animation: dotPulse 1.4s ease-in-out infinite;
+        }
+        .gen-preview-dot:nth-child(2) { animation-delay: 0.2s; }
+        .gen-preview-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotPulse {
+          0%,80%,100% { transform: scale(0.7); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
         }
 
         /* Badge */
@@ -598,10 +737,179 @@ export default function GenerationContent() {
           letter-spacing: 0.02em;
         }
 
-        /* Loading pulse */
+        /* Loading skeleton */
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         .gen-loading { animation: pulse 1.5s ease-in-out infinite; }
+
+        /* ✅ Site Ready Banner */
+        .gen-ready-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(5,5,8,0.85);
+          backdrop-filter: blur(12px);
+          animation: overlayIn 0.4s ease forwards;
+        }
+        @keyframes overlayIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .gen-ready-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(99,102,241,0.3);
+          border-radius: 24px;
+          padding: 48px 56px;
+          text-align: center;
+          max-width: 480px;
+          width: 90%;
+          animation: cardIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+          position: relative;
+          overflow: hidden;
+        }
+        .gen-ready-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%);
+          pointer-events: none;
+        }
+        @keyframes cardIn {
+          from { opacity: 0; transform: scale(0.85) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .gen-ready-icon {
+          width: 72px; height: 72px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));
+          border: 1px solid rgba(99,102,241,0.3);
+          display: flex; align-items: center; justify-content: center;
+          margin: 0 auto 24px;
+          animation: iconPop 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.2s both;
+        }
+        @keyframes iconPop {
+          from { transform: scale(0); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .gen-ready-title {
+          font-family: 'Manrope', sans-serif;
+          font-size: 1.75rem;
+          font-weight: 800;
+          letter-spacing: -0.03em;
+          margin-bottom: 10px;
+          background: linear-gradient(135deg, #60a5fa, #818cf8, #c084fc);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: fadeUp 0.5s ease 0.3s both;
+        }
+        .gen-ready-sub {
+          font-family: 'Manrope', sans-serif;
+          font-size: 0.9375rem;
+          font-weight: 300;
+          color: rgba(255,255,255,0.4);
+          margin-bottom: 32px;
+          animation: fadeUp 0.5s ease 0.4s both;
+        }
+        .gen-ready-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 28px;
+          border-radius: 14px;
+          border: none;
+          background: linear-gradient(135deg, #3b82f6, #6366f1, #8b5cf6);
+          color: white;
+          font-family: 'Manrope', sans-serif;
+          font-size: 0.9375rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          animation: fadeUp 0.5s ease 0.5s both;
+        }
+        .gen-ready-btn:hover { transform: translateY(-2px); box-shadow: 0 0 32px rgba(99,102,241,0.4); }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Sparkle particles on ready card */
+        .gen-sparkle {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
+          animation: sparkleFly 2s ease-out forwards;
+        }
+        @keyframes sparkleFly {
+          0% { opacity: 1; transform: scale(1) translate(0,0); }
+          100% { opacity: 0; transform: scale(0) translate(var(--tx), var(--ty)); }
+        }
+
+        /* Phase indicator */
+        .gen-phase {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.6875rem;
+          font-weight: 600;
+          padding: 3px 8px;
+          border-radius: 999px;
+          font-family: 'Manrope', sans-serif;
+        }
+        .gen-phase-active {
+          background: rgba(99,102,241,0.12);
+          border: 1px solid rgba(99,102,241,0.2);
+          color: #a5b4fc;
+        }
+        .gen-phase-done {
+          background: rgba(16,185,129,0.1);
+          border: 1px solid rgba(16,185,129,0.2);
+          color: #34d399;
+        }
+        .gen-phase-waiting {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.07);
+          color: rgba(255,255,255,0.25);
+        }
+        .gen-phase-dot {
+          width: 5px; height: 5px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .gen-phase-dot-active { background: #818cf8; box-shadow: 0 0 6px #818cf8; animation: pulse 1s infinite; }
+        .gen-phase-dot-done { background: #34d399; }
+        .gen-phase-dot-waiting { background: rgba(255,255,255,0.15); }
       `}</style>
+
+      {/* ✅ Site Ready Overlay */}
+      {isReady && (
+        <div className="gen-ready-overlay" onClick={() => setIsReady(false)}>
+          <div className="gen-ready-card" onClick={e => e.stopPropagation()}>
+            <div className="gen-ready-icon">
+              <Sparkles size={32} color="#a78bfa" />
+            </div>
+            <div className="gen-ready-title">Your site is ready!</div>
+            <p className="gen-ready-sub">
+              All {totalSteps} files generated and mounted. Preview it live or download the source.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="gen-ready-btn" onClick={() => setIsReady(false)}>
+                <span>View Site →</span>
+              </button>
+              <button
+                className="gen-ready-btn"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                onClick={() => { downloadFilesAsZip(files); setIsReady(false) }}
+              >
+                <Download size={15} />
+                <span>Download</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <header className="gen-header gen-root sticky top-0 z-50">
@@ -615,20 +923,30 @@ export default function GenerationContent() {
               <h1 style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.9375rem', fontWeight: 700, letterSpacing: '-0.01em', color: 'white', lineHeight: 1.2 }}>
                 BlinkBuild
               </h1>
-              <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.75rem', fontWeight: 300, color: 'rgba(255,255,255,0.35)', lineHeight: 1 }}>
-                Generating your website...
+              <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.7rem', fontWeight: 300, color: loading ? 'rgba(99,162,241,0.7)' : 'rgba(52,211,153,0.8)', lineHeight: 1, transition: 'color 0.5s ease' }}>
+                {headerStatus}
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button className="gen-action-btn gen-btn-outline">
+            <button
+              className="gen-action-btn gen-btn-outline"
+              onClick={() => downloadFilesAsZip(files)}
+              disabled={files.length === 0}
+              style={{ opacity: files.length === 0 ? 0.4 : 1 }}
+            >
               <Download size={13} />
               Download
             </button>
-            <button className="gen-action-btn gen-btn-primary">
-              <Play size={13} />
-              <span>Deploy</span>
+            <button
+              className="gen-action-btn gen-btn-green"
+              onClick={() => setIsReady(true)}
+              disabled={loading}
+              style={{ opacity: loading ? 0.4 : 1 }}
+            >
+              <Share2 size={13} />
+              <span>Share</span>
             </button>
           </div>
         </div>
@@ -641,13 +959,26 @@ export default function GenerationContent() {
         <div className="gen-left-panel">
           {/* Panel header */}
           <div className="gen-panel-header">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <span style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.8125rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Steps
               </span>
               <span className="gen-badge">{completedSteps}/{totalSteps}</span>
             </div>
-            {/* Custom progress bar */}
+
+            {/* Phase indicators */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+              <span className={`gen-phase ${templateDone ? 'gen-phase-done' : 'gen-phase-active'}`}>
+                <span className={`gen-phase-dot ${templateDone ? 'gen-phase-dot-done' : 'gen-phase-dot-active'}`} />
+                Template
+              </span>
+              <span className={`gen-phase ${chatDone ? 'gen-phase-done' : templateDone ? 'gen-phase-active' : 'gen-phase-waiting'}`}>
+                <span className={`gen-phase-dot ${chatDone ? 'gen-phase-dot-done' : templateDone ? 'gen-phase-dot-active' : 'gen-phase-dot-waiting'}`} />
+                AI Generation
+              </span>
+            </div>
+
+            {/* Progress bar */}
             <div className="gen-progress-track">
               <div className="gen-progress-fill" style={{ width: `${progress}%` }} />
             </div>
@@ -656,39 +987,45 @@ export default function GenerationContent() {
             </span>
           </div>
 
-          {/* Steps list */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {loading ? (
+          {/* ✅ Scrollable steps list — fixed height window */}
+          <div className="gen-steps-scroll">
+            {loading && visibleSteps.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="gen-loading" style={{ height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', animationDelay: `${i * 0.1}s` }} />
+                  <div key={i} className="gen-loading" style={{ height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', animationDelay: `${i * 0.12}s` }} />
                 ))}
               </div>
-            ) : steps.length > 0 ? (
+            ) : visibleSteps.length > 0 ? (
               <div>
-                {steps.map(step => (
-                  <div key={step.id} className="gen-step-item">
+                {visibleSteps.map((step, i) => (
+                  <div key={step.id} className="gen-step-item" style={{ animationDelay: `${i * 0.02}s` }}>
                     <div style={{ paddingTop: 1, flexShrink: 0 }}>
                       {step.status === "completed" ? (
-                        <CheckCircle size={16} color="#34d399" />
+                        <CheckCircle size={15} color="#34d399" />
                       ) : step.status === "in-progress" ? (
-                        <Clock size={16} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
+                        <Clock size={15} color="#60a5fa" style={{ animation: 'spin 1s linear infinite' }} />
                       ) : (
-                        <Circle size={16} color="rgba(255,255,255,0.15)" />
+                        <Circle size={15} color="rgba(255,255,255,0.12)" />
                       )}
                     </div>
                     <span style={{
                       fontFamily: 'Manrope,sans-serif',
-                      fontSize: '0.8125rem',
-                      fontWeight: step.status === 'completed' ? 400 : 500,
-                      color: step.status === 'completed' ? 'rgba(255,255,255,0.3)' : step.status === 'in-progress' ? 'white' : 'rgba(255,255,255,0.55)',
+                      fontSize: '0.8rem',
+                      fontWeight: step.status === 'in-progress' ? 600 : 400,
+                      color: step.status === 'completed'
+                        ? 'rgba(255,255,255,0.25)'
+                        : step.status === 'in-progress'
+                        ? 'white'
+                        : 'rgba(255,255,255,0.5)',
                       lineHeight: 1.4,
                       textDecoration: step.status === 'completed' ? 'line-through' : 'none',
+                      transition: 'color 0.3s, text-decoration 0.3s',
                     }}>
                       {step.title}
                     </span>
                   </div>
                 ))}
+                <div ref={stepsEndRef} />
               </div>
             ) : (
               <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.2)', paddingTop: 8 }}>No steps yet</p>
@@ -696,7 +1033,7 @@ export default function GenerationContent() {
           </div>
 
           {/* Send area */}
-          <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
             <textarea
               className="gen-send-textarea"
               placeholder="Ask for changes..."
@@ -713,6 +1050,7 @@ export default function GenerationContent() {
                   content: userPrompt,
                 }
                 setLoading(true)
+                setIsReady(false)
                 const messages = [...llmMessages, newMessage]
 
                 const stepsResponse = await fetch("/api/chat", {
@@ -732,11 +1070,13 @@ export default function GenerationContent() {
                 }])
 
                 if (responseText) {
-                  setSteps(s => [...s, ...parseXml(responseText).map((x: Step) => ({
+                  const newSteps = parseXml(responseText).map((x: Step) => ({
                     ...x,
                     id: nextId(),
                     status: "pending" as const,
-                  }))])
+                  }))
+                  setSteps(s => [...s, ...newSteps])
+                  enqueueSteps(newSteps)
                 }
 
                 setUserPrompt("")
@@ -753,16 +1093,10 @@ export default function GenerationContent() {
           {/* Tab bar */}
           <div className="gen-tabs-header">
             <TabsList className="contents">
-              <TabsTrigger
-                value="code"
-                className="gen-tab-trigger data-[state=active]:active"
-              >
+              <TabsTrigger value="code" className="gen-tab-trigger data-[state=active]:active">
                 Code
               </TabsTrigger>
-              <TabsTrigger
-                value="preview"
-                className="gen-tab-trigger data-[state=active]:active"
-              >
+              <TabsTrigger value="preview" className="gen-tab-trigger data-[state=active]:active">
                 Preview
               </TabsTrigger>
             </TabsList>
@@ -771,7 +1105,6 @@ export default function GenerationContent() {
           {/* Code tab */}
           <TabsContent value="code" style={{ flex: 1, margin: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', flex: 1, border: '1px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 14px 14px', overflow: 'hidden', height: '100%' }}>
-
               {/* File Explorer */}
               <div className="gen-explorer-panel">
                 <div className="gen-explorer-header">
@@ -779,12 +1112,9 @@ export default function GenerationContent() {
                     Explorer
                   </span>
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+                <div className="gen-explorer-scroll">
                   {files.length > 0 ? (
-                    <FileExplorer
-                      files={files}
-                      onFileSelect={setSelectedFile}
-                    />
+                    <FileExplorer files={files} onFileSelect={setSelectedFile} />
                   ) : (
                     <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.8rem', color: 'rgba(255,255,255,0.18)', padding: '8px 4px' }}>No files yet</p>
                   )}
@@ -799,7 +1129,7 @@ export default function GenerationContent() {
                     {selectedFile?.name || "Select a file"}
                   </span>
                 </div>
-                <div style={{ flex: 1, minHeight: 0 }}>
+                <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <CodeEditor file={selectedFile} />
                 </div>
               </div>
@@ -814,11 +1144,38 @@ export default function GenerationContent() {
                   Live Preview
                 </span>
               </div>
-              <div style={{ flex: 1, background: 'white', overflow: 'hidden', height: '100%' }}>
-                {webcontainer && (
+
+              {/* ✅ Dark loading screen instead of white blank */}
+              {loading || !webcontainer ? (
+                <div className="gen-preview-loading">
+                  <div style={{ position: 'relative' }}>
+                    <div className="gen-preview-spinner" />
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <div style={{ width: 18, height: 18, borderRadius: 5, background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)' }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.9375rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 6 }}>
+                      {loading ? 'Building your site...' : 'Starting Dev Server...'}
+                    </p>
+                    <p style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.8rem', fontWeight: 300, color: 'rgba(255,255,255,0.25)' }}>
+                      {loading ? 'Generating files and dependencies' : 'This may take a few seconds'}
+                    </p>
+                  </div>
+                  <div className="gen-preview-dots">
+                    <div className="gen-preview-dot" />
+                    <div className="gen-preview-dot" />
+                    <div className="gen-preview-dot" />
+                  </div>
+                </div>
+              ) : (
+                <div style={{ flex: 1, overflow: 'hidden', height: '100%' }}>
                   <PreviewFrame webContainer={webcontainer} files={files} />
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
