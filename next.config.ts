@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  output:"standalone"
   // other config options here (if any)
 };
 

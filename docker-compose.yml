@@ -1,0 +1,14 @@
+services:
+  next-app:
+    build:
+      context: .
+    container_name: nextjs_prod
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - API_KEY=${API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 1G

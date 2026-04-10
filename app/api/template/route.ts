@@ -6,7 +6,7 @@ import { basePrompt as reactBasePrompt } from "@/app/lib/defaults/react";
 import { BASE_PROMPT } from "@/app/lib/prompt";
 
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_API_KEY!);
+const genAI = new GoogleGenerativeAI(process.env.API_KEY!);
 const model = genAI.getGenerativeModel({ 
   model: "gemini-2.5-flash",
   systemInstruction:BASE_PROMPT

@@ -6,7 +6,7 @@ export const runtime = "edge"; // Required for streaming
 export async function POST(req: Request): Promise<Response> {
   const { prompt } = await req.json();
 
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+  const apiKey = process.env.API_KEY;
   if (!apiKey) return new Response("API key missing", { status: 500 });
 
   const genAI = new GoogleGenerativeAI(apiKey);
