@@ -3,12 +3,19 @@ services:
     build:
       context: .
     container_name: nextjs_prod
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - API_KEY=${API_KEY}
+      - NODE_ENV=production
     deploy:
       resources:
         limits:
           memory: 1G
+          cpus: '1.0'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
