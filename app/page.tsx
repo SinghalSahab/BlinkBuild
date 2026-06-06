@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Code, Sparkles, Zap } from "lucide-react";
 import { generateWebsite } from "./actions";
+import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/nextjs';
 
 export default function HomePage() {
   return (
@@ -119,6 +120,21 @@ export default function HomePage() {
         .cta-btn:hover::after { opacity: 1; }
         .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 0 36px rgba(99,102,241,0.45); }
         .cta-btn > * { position: relative; z-index: 1; }
+
+        .sec-btn {
+          color: rgba(255,255,255,0.65);
+          font-size: 0.875rem;
+          font-weight: 600;
+          background: none;
+          border: none;
+          cursor: pointer;
+          transition: color 0.2s ease;
+          font-family: 'Manrope', sans-serif;
+          padding: 8px 16px;
+        }
+        .sec-btn:hover {
+          color: rgba(255,255,255,0.95);
+        }
 
         .nav-link {
           color: rgba(255,255,255,0.5);
@@ -254,13 +270,19 @@ export default function HomePage() {
             <a href="#contact" className="nav-link">Contact</a>
           </nav>
 
-          <button
-  className="cta-btn"
-  style={{ padding: '9px 20px', fontSize: '0.875rem' }}
-  onClick={() => document.getElementById('prompt')?.focus()}
->
-  Get Started →
-</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button className="sec-btn">Sign In</button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button className="cta-btn" style={{ padding: '9px 20px', fontSize: '0.875rem' }}>Sign Up</button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <UserButton />
+            </Show>
+          </div>
         </div>
       </header>
 
