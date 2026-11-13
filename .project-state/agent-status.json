@@ -1,0 +1,30 @@
+{
+  "manager": {
+    "status": "idle",
+    "current_step": "Understand",
+    "active_requirement_id": null
+  },
+  "agents": {
+    "architect": {
+      "state": "idle"
+    },
+    "frontend": {
+      "state": "idle"
+    },
+    "backend": {
+      "state": "idle"
+    },
+    "database": {
+      "state": "idle"
+    },
+    "qa": {
+      "state": "idle"
+    },
+    "devops": {
+      "state": "idle"
+    }
+  },
+  "retry_counters": {},
+  "max_retries_per_task": 3,
+  "escalated": false
+}
