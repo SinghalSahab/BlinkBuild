@@ -1,0 +1,11 @@
+{
+  "last_run": null,
+  "status": "pending",
+  "summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "duration_ms": 0
+  },
+  "test_suites": []
+}

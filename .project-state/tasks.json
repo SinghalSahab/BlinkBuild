@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    {
+      "task_id": "TASK-DB-01",
+      "requirement_id": "REQ-001",
+      "assigned_to": "database",
+      "title": "Create User schema with role enum and password hash",
+      "status": "completed",
+      "dependencies": [],
+      "artifacts": ["lib/db/schema.ts"]
+    },
+    {
+      "task_id": "TASK-BE-01",
+      "requirement_id": "REQ-001",
+      "assigned_to": "backend",
+      "title": "Implement /api/auth/login and role verification middleware",
+      "status": "implementation_complete",
+      "dependencies": ["TASK-DB-01"],
+      "artifacts": ["app/api/auth/route.ts", "lib/auth/middleware.ts"]
+    },
+    {
+      "task_id": "TASK-QA-01",
+      "requirement_id": "REQ-001",
+      "assigned_to": "qa",
+      "title": "Verify AC-1 through AC-4 with unit & integration test suites",
+      "status": "in_progress",
+      "dependencies": ["TASK-BE-01"],
+      "artifacts": ["tests/auth.test.ts"]
+    }
+  ]
+}
