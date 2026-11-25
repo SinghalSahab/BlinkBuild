@@ -1,8 +1,9 @@
 services:
-  next-app:
+  client:
     build:
-      context: .
-    container_name: nextjs_prod
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: blinkbuild_client
     restart: unless-stopped
     ports:
       - "3000:3000"
