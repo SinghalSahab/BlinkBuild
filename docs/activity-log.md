@@ -110,3 +110,27 @@
   - `npx next start -p 3099` became ready in `240ms`; `curl` returned `HTTP_CODE=500` because `client/.env.local` is absent (`Error: @clerk/nextjs: Missing publishableKey`). Live sign-in, prompt generation, and WebContainer preview are **not tested** without `client/.env.local` keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `API_KEY`).
 - **Next step:** Commit Phase 1 documentation updates and request human approval to start **Phase 2: Server skeleton**.
 - **Linked decisions:** `D-003`, `D-017`.
+
+---
+
+### #0008 — 2026-11-26
+- **Task ID / Requirements:** `P2-T1`, `P2-T2`, `P2-T3`, `P2-T4`, `P2-T5`, `P2-T6`, `NFR-01`, `NFR-09`
+- **Action:** Created `server/` skeleton with pinned dependencies (`pyproject.toml`), non-root `server/Dockerfile`, fail-fast environment settings (`app/config/settings.py`), shared-secret + forwarded Clerk user ID auth (`app/api/auth.py`), FastAPI app with `/health` and `/protected/ping` (`app/main.py`), updated `docker-compose.yml` (private `server` service + `blinkbuild_sqlite_data` volume) and `.env.example`, and ran `pytest`.
+- **Files touched:**
+  - `.gitignore` (modified: Python ignores)
+  - `server/pyproject.toml`, `server/Dockerfile` (created)
+  - `server/app/__init__.py`, `server/app/main.py` (created)
+  - `server/app/config/__init__.py`, `server/app/config/settings.py` (created)
+  - `server/app/api/__init__.py`, `server/app/api/auth.py` (created)
+  - `server/tests/__init__.py`, `server/tests/test_server_skeleton.py` (created)
+  - `docker-compose.yml`, `.env.example` (modified)
+  - `docs/decisions.md`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `python3 -m venv server/.venv && server/.venv/bin/pip install fastapi "uvicorn[standard]" pydantic-settings pytest httpx`
+  - `cd server && .venv/bin/pytest -v`
+  - `BLINKBUILD_SERVER_SECRET=local-smoke-secret docker compose up -d --build`
+- **Result:**
+  - `pytest -v`: **6/6 passed** in `0.71s` (missing env var fail-fast, `/health`, missing secret 401, wrong secret 401, missing user ID 401, valid headers 200).
+  - `docker compose up -d --build`: **blocked** (`Cannot connect to the Docker daemon at unix:///Users/prakhar/.docker/run/docker.sock. Is the docker daemon running?`). Live container startup is not yet verified until Docker Desktop is started.
+- **Next step:** Commit Phase 2 changes and request human approval before starting **Phase 3: Shared project state (Pydantic + SQLite)** (and note the Docker daemon blocker for `docker compose up`).
+- **Linked decisions:** `D-004`, `D-005`, `D-018`, `D-019`.

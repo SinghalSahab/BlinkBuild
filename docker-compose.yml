@@ -9,7 +9,13 @@ services:
       - "3000:3000"
     environment:
       - API_KEY=${API_KEY}
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - BLINKBUILD_SERVER_URL=http://server:8000
+      - BLINKBUILD_SERVER_SECRET=${BLINKBUILD_SERVER_SECRET}
       - NODE_ENV=production
+    depends_on:
+      - server
     deploy:
       resources:
         limits:
@@ -20,3 +26,25 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: blinkbuild_server
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - BLINKBUILD_SERVER_SECRET=${BLINKBUILD_SERVER_SECRET}
+      - SQLITE_DB_PATH=/data/blinkbuild.db
+    volumes:
+      - blinkbuild_sqlite_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  blinkbuild_sqlite_data:

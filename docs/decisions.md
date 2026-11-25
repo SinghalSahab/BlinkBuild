@@ -183,3 +183,23 @@
 - **Impact:** Keeps `qa` history explicit with a revert commit before branching `feat/multi-agent-engine` for Phase 1.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Recreate or rebase `feat/multi-agent-engine` from `65de19a`.
+
+### D-018 — Phase 2 Server Dependencies & Python Version
+- **Date and task ID:** 2026-11-26 | P2-T1
+- **Decision:** Pin `fastapi==0.165.0`, `uvicorn[standard]==0.54.0`, `pydantic==2.14.4`, `pydantic-settings==2.16.3` (dev: `pytest==9.2.0`, `httpx==0.28.1`) with `requires-python = ">=3.11,<3.14"` and `python:3.12-slim` in `server/Dockerfile`.
+- **Context:** CrewAI supports Python `>=3.10,<3.14` (confirmed via PyPI search); local machine runs Python `3.13.7`.
+- **Options considered:** (a) Unpinned ranges; (b) Exact pinned versions verified by installing into `server/.venv`.
+- **Chosen option and why:** Exact pinned versions (`NFR-09`) verified by `pip install` and `pip freeze`.
+- **Impact:** Reproducible `server/` builds; CrewAI and SQLAlchemy/Alembic will be added in Phase 3+.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Update pins in `server/pyproject.toml`.
+
+### D-019 — Server Network Exposure & Internal Auth Headers
+- **Date and task ID:** 2026-11-26 | P2-T4, P2-T5
+- **Decision:** Expose `server` only on the internal Docker Compose network (`expose: ["8000"]`, no host `ports` mapping) and authenticate all non-health routes via `X-BlinkBuild-Secret` (constant-time `hmac.compare_digest` against `BLINKBUILD_SERVER_SECRET`) and `X-Clerk-User-Id`.
+- **Context:** `PM.md` `P2-T4`/`P2-T5` and `NFR-01` require the Python server to never be public and to validate both the shared secret and forwarded Clerk user ID.
+- **Options considered:** (a) `expose: ["8000"]` internal-only; (b) `ports: ["127.0.0.1:8000:8000"]` for host debugging.
+- **Chosen option and why:** Internal-only `expose: ["8000"]` for maximum isolation by default (`NFR-01`).
+- **Impact:** Only `client` (or another container on the Compose network) can reach `http://server:8000`.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Temporarily add `127.0.0.1:8000:8000` under `ports:` in `docker-compose.yml` if host-level debugging is needed.

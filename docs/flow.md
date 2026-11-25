@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P1-T7
+Last updated: 2026-11-26 | Task: P2-T6
 
 ## 1. What BlinkBuild Does Now
 
@@ -8,9 +8,11 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 2. Codebases (`client` and `server`)
 
-- **Current state (Phase 1 complete):** The Next.js 16 application lives in `client/` (`client/app/`, `client/components/`, `client/hooks/`, `client/lib/`, `client/public/`, `client/Dockerfile`). Commit `f4318df` (the previous simulated QA layer) was reverted on `qa`, `/api/gemini` and `axios` were removed, and the `/api/template` `node` branch bug was fixed.
-- **Planned (`server/`):**
-  - `server/`: A Python 3.11+ FastAPI + CrewAI service (to be created in Phase 2+) running in its own Docker container (never publicly exposed), responsible for multi-agent planning, code generation, LLM routing/throttling, SQLite state persistence, and orchestrating hardened sibling Docker sandbox containers for QA verification.
+- **Current state (Phase 2 complete):**
+  - `client/`: The Next.js 16 application (`client/app/`, `client/components/`, `client/hooks/`, `client/lib/`, `client/public/`, `client/Dockerfile`).
+  - `server/`: Python FastAPI skeleton (`server/app/main.py`, `server/app/config/settings.py`, `server/app/api/auth.py`, `server/pyproject.toml`, `server/Dockerfile`, `server/tests/`), running privately on the Docker Compose network (`expose: ["8000"]`) with `GET /health` and internal shared-secret + Clerk user ID authentication (`X-BlinkBuild-Secret`, `X-Clerk-User-Id`).
+- **Planned:**
+  - `server/` (Phases 3–9): SQLite shared state, LLM routing, CrewAI agents (Manager, Frontend, Backend, QA), and hardened sibling Docker sandbox.
   - `client/` additions (Phase 10): a Next.js SSE proxy route, OpenAPI-generated TypeScript types, and additive UI panels for mode selection, agent activity, test results, defects, and escalations.
 
 ## 3. Step-by-Step Flow of a Run
