@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P0-T2
+Last updated: 2026-11-26 | Task: P1-T7
 
 ## 1. What BlinkBuild Does Now
 
@@ -8,10 +8,10 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 2. Codebases (`client` and `server`)
 
-- **Current state (Phase 0 baseline):** The repository is a single Next.js 16 application at the repository root (`app/`, `components/`, `hooks/`, `lib/`, `public/`). There is also a standalone TypeScript QA simulation layer (`lib/agents/`, `app/api/agents/qa/route.ts`, `.project-state/`, `.github/agents/`, `scripts/run-qa-simulation.mjs`) from commit `f4318df`, pending human decision at Checkpoint H1.
-- **Planned (`client/` and `server/`):**
-  - `client/`: The existing Next.js 16 application moved via `git mv`, plus a Next.js SSE proxy route, OpenAPI-generated TypeScript types, and additive UI panels for mode selection, agent activity, test results, defects, and escalations.
-  - `server/`: A Python 3.11+ FastAPI + CrewAI service running in its own Docker container (never publicly exposed), responsible for multi-agent planning, code generation, LLM routing/throttling, SQLite state persistence, and orchestrating hardened sibling Docker sandbox containers for QA verification.
+- **Current state (Phase 1 complete):** The Next.js 16 application lives in `client/` (`client/app/`, `client/components/`, `client/hooks/`, `client/lib/`, `client/public/`, `client/Dockerfile`). Commit `f4318df` (the previous simulated QA layer) was reverted on `qa`, `/api/gemini` and `axios` were removed, and the `/api/template` `node` branch bug was fixed.
+- **Planned (`server/`):**
+  - `server/`: A Python 3.11+ FastAPI + CrewAI service (to be created in Phase 2+) running in its own Docker container (never publicly exposed), responsible for multi-agent planning, code generation, LLM routing/throttling, SQLite state persistence, and orchestrating hardened sibling Docker sandbox containers for QA verification.
+  - `client/` additions (Phase 10): a Next.js SSE proxy route, OpenAPI-generated TypeScript types, and additive UI panels for mode selection, agent activity, test results, defects, and escalations.
 
 ## 3. Step-by-Step Flow of a Run
 
@@ -47,7 +47,7 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 6. LLM Routing
 
-- **Current:** Hard-coded to `gemini-2.5-flash` in `app/api/template/route.ts`, `app/api/chat/route.ts`, and `app/api/gemini/route.ts` using `process.env.API_KEY`.
+- **Current:** Hard-coded to `gemini-2.5-flash` in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts` using `process.env.API_KEY`.
 - **Planned:** Configured per agent via environment variables (exact model strings and limits deferred per `D-016`):
   - `fast` mode: Groq.
   - `local` mode: Ollama on Google Colab via ngrok (with `ngrok-skip-browser-warning` header and bearer token; demo only).
@@ -56,7 +56,7 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 7. Shared State
 
-- **Current:** Ephemeral React state in `app/generate/generation-content.tsx` (`steps`, `files`, `llmMessages`, `selectedFile`), plus unused `.project-state/*.json` files from commit `f4318df`.
+- **Current:** Ephemeral React state in `client/app/generate/generation-content.tsx` (`steps`, `files`, `llmMessages`, `selectedFile`).
 - **Planned:** Pydantic models validated and persisted in a **SQLite** database file stored on a Docker named volume (`runs`, `plans`, `tasks`, `contracts`, `generated_files`, `test_cases`, `test_results`, `defects`, `agent_status`, `retry_counters`, `llm_usage`, `audit_entries`).
 
 ## 8. How the Client Displays Results
@@ -66,19 +66,16 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 9. How to Run Locally
 
-Verified at Phase 0 baseline (`P0-T4`, Node `v22.20.0`, npm `11.13.0`):
-- Install dependencies: `npm ci`
-- Development server: `npm run dev` (`next dev --turbopack`)
-- Production build: `npm run build` (`next build` — verified passing on Next.js 16.2.3 Turbopack)
-- Production start: `npm run start` (`next start`)
-- Lint: `npm run lint` (`next lint`)
+Verified at Phase 1 (`P1-T7`, Node `v22.20.0`, npm `11.13.0`):
+- Install dependencies: `cd client && npm ci`
+- Development server: `cd client && npm run dev` (`next dev --turbopack`)
+- Production build: `cd client && npm run build` (`next build` — verified passing on Next.js 16.2.3 Turbopack)
+- Production start: `cd client && npm run start` (`next start`)
+- Lint: `cd client && npm run lint` (`next lint`)
 
-Environment variables required currently: `API_KEY` (Gemini), Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`).
+Environment variables required currently (see `.env.example`): `API_KEY` (Gemini), Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`).
 
 ## 10. Known Limitations
 
-1. In `app/api/template/route.ts` (line 58), the `"node"` branch interpolates `reactBasePrompt` into `prompts` while `uiPrompts` uses `nodeBasePrompt`.
-2. `app/api/gemini/route.ts` is unused.
-3. `axios` is listed in `package.json` but has zero imports in the codebase.
-4. `downloadFilesAsZip()` in `app/generate/generation-content.tsx` downloads a plain-text bundle (`blinkbuild-project.txt`) rather than a `.zip` archive.
-5. **Planned limitation:** QA will execute generated code inside a full Node Docker container, whereas live preview executes in browser WebContainers (different runtime; mismatches must be recorded during evaluation).
+1. `downloadFilesAsZip()` in `client/app/generate/generation-content.tsx` downloads a plain-text bundle (`blinkbuild-project.txt`) rather than a `.zip` archive.
+2. **Planned limitation:** QA will execute generated code inside a full Node Docker container, whereas live preview executes in browser WebContainers (different runtime; mismatches must be recorded during evaluation).

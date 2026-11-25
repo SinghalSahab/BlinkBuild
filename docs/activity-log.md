@@ -48,3 +48,65 @@
   - Observed warning: Next.js detected `/Users/prakhar/package-lock.json` outside the repo alongside `/Users/prakhar/BlinkBuild/package-lock.json`; also noted edge runtime warning on `/api/gemini` (which is slated for deletion in `P1-T2`).
 - **Next step:** Stop at **Checkpoint H1** and request human approval for the working branch (`feat/multi-agent-engine`), how to handle the QA commit `f4318df`, and approval to begin **Phase 1**.
 - **Linked decisions:** `D-017`.
+
+---
+
+### #0004 — 2026-11-26
+- **Task ID / Requirements:** `P1-T1`, `D-017`
+- **Action:** Reverted commit `f4318df` on `qa` per Checkpoint H1 decision (`D-017`), created branch `feat/multi-agent-engine` from `qa`, and committed the initial `docs/` files (`P0-T2`).
+- **Files touched:** 19 files from `f4318df` deleted via revert; `docs/flow.md`, `docs/decisions.md`, `docs/activity-log.md` committed.
+- **Commands run:**
+  - `git revert --no-edit f4318df`
+  - `git checkout -b feat/multi-agent-engine`
+  - `git add docs/ && git commit -m "docs: add flow, decisions, activity log"`
+- **Result:** Revert commit `e34476d` created on `qa`; branch `feat/multi-agent-engine` created; docs commit `59b10a3` created. None of the 19 QA simulation files remain in the working tree.
+- **Next step:** Delete unused `/api/gemini` (`P1-T2`), fix `/api/template` (`P1-T3`), and remove `axios` (`P1-T4`).
+- **Linked decisions:** `D-001`, `D-002`, `D-017`.
+
+---
+
+### #0005 — 2026-11-26
+- **Task ID / Requirements:** `P1-T2`, `P1-T3`, `P1-T4`, `D-009`
+- **Action:** Verified zero references to `/api/gemini` and `axios`, deleted `app/api/gemini/route.ts`, fixed the `node` branch in `app/api/template/route.ts` to interpolate `nodeBasePrompt`, and uninstalled `axios`.
+- **Files touched:**
+  - `app/api/gemini/route.ts` (deleted)
+  - `app/api/template/route.ts` (modified)
+  - `package.json`, `package-lock.json` (modified)
+- **Commands run:**
+  - `grep -rn "api/gemini\|/gemini" app components hooks lib`
+  - `rm -rf app/api/gemini && npm uninstall axios`
+  - `git add app/api/gemini && git commit -m "P1-T2: delete unused /api/gemini route"`
+  - `git add app/api/template/route.ts && git commit -m "P1-T3: fix node branch in /api/template"`
+  - `git add package.json package-lock.json && git commit -m "P1-T4: remove unused axios dependency"`
+- **Result:** Commits `8cd5b0a` (`P1-T2`), `5b7bdad` (`P1-T3`), `bbb0f02` (`P1-T4`). `npm uninstall axios` removed 9 packages cleanly.
+- **Next step:** Move Next.js app into `client/` (`P1-T5`).
+- **Linked decisions:** `D-009`, `D-010`.
+
+---
+
+### #0006 — 2026-11-26
+- **Task ID / Requirements:** `P1-T5`, `P1-T6`, `D-003`
+- **Action:** Moved the Next.js app into `client/` using `git mv` (renaming `DockerFile` to `client/Dockerfile`), updated `docker-compose.yml` build context to `./client`, updated `.gitignore` for `node_modules/`, `.next/`, and `!.env.example`, and added root `.env.example` and updated `README.md`.
+- **Files touched:** 48 files moved to `client/`, `.gitignore` (modified), `docker-compose.yml` (modified), `.env.example` (created), `README.md` (modified).
+- **Commands run:**
+  - `mkdir -p client && git mv ... client/ && git mv client/DockerFile client/Dockerfile`
+  - `git add -A client/ docker-compose.yml && git commit -m "P1-T5: move Next.js app into client/ and update docker-compose.yml"` (amended after fixing `.gitignore` and `git rm -r -q --cached client/node_modules`)
+  - `git add .env.example README.md && git commit -m "P1-T6: add root .env.example and update README.md"`
+- **Result:** Commits `48e450d0` (`P1-T5`) and `856e3dad` (`P1-T6`). `client/next.config.ts` and `client/vercel.json` COOP/COEP headers preserved identically.
+- **Next step:** Run `client/` build and smoke test (`P1-T7`).
+- **Linked decisions:** `D-003`, `D-008`.
+
+---
+
+### #0007 — 2026-11-26
+- **Task ID / Requirements:** `P1-T7`, `NFR-07`
+- **Action:** Ran `npm run build` in `client/` and performed a local server startup smoke test on port `3099`. Updated `docs/flow.md` to reflect the `client/` layout.
+- **Files touched:** `docs/flow.md` (modified), `docs/activity-log.md` (modified).
+- **Commands run:**
+  - `cd client && npm run build`
+  - `cd client && npx next start -p 3099` + `curl -s -o /dev/null -w "%{http_code}" http://localhost:3099`
+- **Result:**
+  - `npm run build` exited `0`: Next.js `16.2.3` Turbopack compiled in `7.9s`, TypeScript finished in `5.5s`, `7/7` static pages generated (`/`, `/_not-found`, `/api/chat`, `/api/template`, `/generate`, `/sign-in/[[...sign-in]]`, `/sign-up/[[...sign-up]]`).
+  - `npx next start -p 3099` became ready in `240ms`; `curl` returned `HTTP_CODE=500` because `client/.env.local` is absent (`Error: @clerk/nextjs: Missing publishableKey`). Live sign-in, prompt generation, and WebContainer preview are **not tested** without `client/.env.local` keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `API_KEY`).
+- **Next step:** Commit Phase 1 documentation updates and request human approval to start **Phase 2: Server skeleton**.
+- **Linked decisions:** `D-003`, `D-017`.
