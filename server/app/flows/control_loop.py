@@ -386,6 +386,16 @@ class BlinkBuildOrchestrator:
                 # Increment counter in SQLite BEFORE attempting fix (P9-T3)
                 counter = orchestrator.repo.increment_retry(run_id, self.state.primary_task_id)
                 orchestrator.repo.update_run_status(run_id, RunStatus.FIXING)
+                orchestrator.repo.append_audit(
+                    AuditEntry(
+                        id=f"aud-{uuid.uuid4().hex[:12]}",
+                        run_id=run_id,
+                        category="RETRY",
+                        actor="flow",
+                        message=f"Starting retry {counter.count}/3 for task {self.state.primary_task_id}",
+                        requirement_refs=["FR-18", "FR-37"],
+                    )
+                )
                 orchestrator.event_bus.publish(
                     run_id=run_id,
                     event_type="retry_started",
@@ -465,7 +475,38 @@ class BlinkBuildOrchestrator:
         flow = _RunFlow()
         try:
             flow.kickoff()
-        except (RunLimitExceeded, DefectRoutingEscalationError, MergeConflictError, ValueError) as exc:
+        except RunLimitExceeded as exc:
+            reason = str(exc)
+            self.repo.append_audit(
+                AuditEntry(
+                    id=f"aud-{uuid.uuid4().hex[:12]}",
+                    run_id=run_id,
+                    category="LIMIT_REACHED",
+                    actor="llm_router",
+                    message=reason,
+                    requirement_refs=["FR-29", "FR-37"],
+                )
+            )
+            self.event_bus.publish(run_id=run_id, event_type="limit_reached", message=reason)
+            flow.state.escalation_report = self._build_escalation_report(
+                run_id, reason, flow.state.primary_task_id or "unknown"
+            )
+            current = self.repo.get_run(run_id)
+            if current and current.status not in (
+                RunStatus.SUCCEEDED,
+                RunStatus.ESCALATED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+            ):
+                self.repo.update_run_status(run_id, RunStatus.ESCALATED, escalation_reason=reason)
+            self.event_bus.publish(
+                run_id=run_id,
+                event_type="escalated",
+                message=reason,
+                data={"report": flow.state.escalation_report},
+            )
+            self.event_bus.close(run_id)
+        except (DefectRoutingEscalationError, MergeConflictError, ValueError) as exc:
             reason = str(exc)
             flow.state.escalation_report = self._build_escalation_report(
                 run_id, reason, flow.state.primary_task_id or "unknown"

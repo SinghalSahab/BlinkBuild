@@ -44,6 +44,18 @@ export interface HTTPValidationError {
 
 export type LlmMode = "auto" | "fast" | "local";
 
+export interface LlmUsage {
+  id: string;
+  run_id: string;
+  agent: AgentOwner;
+  provider: string;
+  model: string;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  latency_ms?: number;
+  created_at?: string;
+}
+
 export interface Run {
   id: string;
   clerk_user_id: string;
@@ -65,6 +77,10 @@ export interface RunSummaryResponse {
   test_results: Array<TestResult>;
   audit_entries: Array<AuditEntry>;
   retries: Record<string, number>;
+  llm_usage: Array<LlmUsage>;
+  providers_used: Array<string>;
+  total_tokens: number;
+  duration_ms: number;
   artifact_xml?: string | null;
 }
 

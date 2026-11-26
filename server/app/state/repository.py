@@ -242,6 +242,15 @@ class StateRepository:
             session.add(LlmUsageRow(**data))
         return validated
 
+    def list_llm_usage(self, run_id: str) -> list[LlmUsage]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                select(LlmUsageRow)
+                .where(LlmUsageRow.run_id == run_id)
+                .order_by(LlmUsageRow.created_at)
+            ).all()
+            return [LlmUsage.model_validate(r, from_attributes=True) for r in rows]
+
     def append_audit(self, entry: AuditEntry) -> AuditEntry:
         validated = AuditEntry.model_validate(entry)
         with session_scope(self._factory) as session:

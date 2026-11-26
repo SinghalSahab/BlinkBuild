@@ -24,6 +24,7 @@ from app.state.models import (
     AuditEntry,
     Defect,
     LlmMode,
+    LlmUsage,
     Run,
     RunStatus,
     Task,
@@ -73,6 +74,10 @@ class RunSummaryResponse(BaseModel):
     test_results: list[TestResult]
     audit_entries: list[AuditEntry]
     retries: dict[str, int]
+    llm_usage: list[LlmUsage]
+    providers_used: list[str]
+    total_tokens: int
+    duration_ms: int
     artifact_xml: str | None = None
 
 
@@ -192,6 +197,14 @@ def get_run_summary(
             files=list(latest_by_path.values()),
         )
 
+    usage = repo.list_llm_usage(run_id)
+    providers_used = sorted({u.provider for u in usage})
+    total_tokens = sum((u.tokens_in or 0) + (u.tokens_out or 0) for u in usage)
+    duration_ms = max(
+        0,
+        int((run.updated_at - run.created_at).total_seconds() * 1000),
+    )
+
     return RunSummaryResponse(
         run=run,
         tasks=tasks,
@@ -199,6 +212,10 @@ def get_run_summary(
         test_results=repo.list_test_results(run_id),
         audit_entries=repo.list_audit_entries(run_id),
         retries=retries,
+        llm_usage=usage,
+        providers_used=providers_used,
+        total_tokens=total_tokens,
+        duration_ms=duration_ms,
         artifact_xml=artifact_xml,
     )
 

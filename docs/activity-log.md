@@ -292,3 +292,21 @@
   - Live Colab execution (`P11-T5`): **not tested (Google Colab runtime unavailable in this environment)**; marked blocked pending live Colab run.
 - **Next step:** Commit Phase 11 and request human approval to start **Phase 12: Audit, limits, and observability**.
 - **Linked decisions:** `D-006`, `D-015`, `D-016`.
+
+---
+
+### #0018 — 2026-11-26
+- **Task ID / Requirements:** `P12-T1`..`P12-T4`, `FR-29`, `FR-37`, `NFR-06`
+- **Action:** Added `RETRY` and `LIMIT_REACHED` audit entries in `server/app/flows/control_loop.py`, added `list_llm_usage()` to `StateRepository` and `llm_usage`/`providers_used`/`total_tokens`/`duration_ms` to `RunSummaryResponse` in `server/app/api/runs.py`, regenerated `client/lib/server-types.ts`, added `server/tests/test_observability_and_limits.py`, and ran a secret-pattern grep across the codebase and docs.
+- **Files touched:**
+  - `server/app/state/repository.py`, `server/app/flows/control_loop.py`, `server/app/api/runs.py`, `client/lib/server-types.ts` (modified)
+  - `server/tests/test_observability_and_limits.py` (created)
+- **Commands run:**
+  - `cd server && ... python -c "... app.openapi() ..."`
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+  - `grep -rnE "AIza...|gsk_...|sk_live_...|sk_test_..." server/app client/app client/components client/lib docs .env.example`
+- **Result:**
+  - `pytest -v`: **41/41 passed** in `6.92s` (confirming low `RUN_MAX_LLM_CALLS=1` triggers `LIMIT_REACHED` audit + `escalated` status + SSE events, `GET /runs/{id}` returns usage/tokens/providers/duration, and secret values never appear in audit logs).
+  - Secret scan: `SECRET_SCAN_CLEAN`.
+- **Next step:** Commit Phase 12 and request human approval to start **Phase 13: Evaluation**.
+- **Linked decisions:** `D-016`, `D-022`.
