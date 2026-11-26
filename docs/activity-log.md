@@ -242,3 +242,19 @@
   - Live container execution checks (`P8-T12` against real Docker daemon): **not tested, blocked on Docker Desktop not running**.
 - **Next step:** Commit Phase 8 and request human approval to start **Phase 9: Control loop (CrewAI Flow)**.
 - **Linked decisions:** `D-012`, `D-013`, `D-024`, `D-025`.
+
+---
+
+### #0015 — 2026-11-26
+- **Task ID / Requirements:** `P9-T1`..`P9-T7`, `FR-18`..`FR-21`, `FR-24`, `FR-37`
+- **Action:** Implemented `RunEventBus` (`server/app/api/events.py`), CrewAI `Flow` control loop with `@persist(SQLiteFlowPersistence)` and deterministic 3-retry `Decide` logic + escalation report + cancellation (`server/app/flows/control_loop.py`), authenticated `/runs` + `/runs/{id}/events` SSE routes (`server/app/api/runs.py`), mounted router in `server/app/main.py`, and added Phase 9 tests (`tests/test_control_loop.py`).
+- **Files touched:**
+  - `server/app/api/events.py`, `server/app/api/runs.py`, `server/app/flows/__init__.py`, `server/app/flows/control_loop.py`, `server/tests/test_control_loop.py` (created)
+  - `server/app/main.py`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **38/38 passed** in `18.39s` (including normal success + `crewai_flows.db` persistence check, defect recovery at retry 1, escalation at exactly 3 retries with escalation report, and `/runs/{id}` + `/runs/{id}/cancel` API tests).
+  - Note: Mid-run container kill/resume (`P9-T4` live process restart) is backed by `SQLiteFlowPersistence` (`flow_states` verified), while live container restart remains pending Docker Desktop.
+- **Next step:** Commit Phase 9 and request human approval to start **Phase 10: Client integration**.
+- **Linked decisions:** `D-001`, `D-007`, `D-020`.

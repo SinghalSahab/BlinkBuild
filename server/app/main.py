@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from app.api.auth import verify_internal_auth
+from app.api.runs import router as runs_router
 from app.config.settings import get_settings
 from app.llm.config import LlmConfig
 from app.llm.router import LlmRouter
@@ -23,6 +24,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.include_router(runs_router)
 
 
 @app.get("/health")

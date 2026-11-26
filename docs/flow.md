@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P8-T12
+Last updated: 2026-11-26 | Task: P9-T7
 
 ## 1. What BlinkBuild Does Now
 
@@ -42,10 +42,13 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 - **Frontend (implemented in `server/app/agents/frontend.py`):** CrewAI `Agent` (`Frontend Software Engineer`) that writes UI components, styles, and client routing in the chosen template stack. Shares `server/app/agents/runner.py` with Backend (`FR-09` minimal scoped context: task, contract, owned files, WebContainer constraints) and `server/app/agents/merge.py` (`merge_agent_outputs()` detects cross-agent path conflicts and logs a `Defect` against the Manager's contract). Never writes server code, edits Backend-owned files, or invents routes not in the contract.
 - **QA (implemented in `server/app/agents/qa.py` and `server/app/sandbox/runner.py`):** CrewAI `Agent` (`Quality Assurance Verification Engineer`) that synthesizes test cases (`happy_path`, `negative_edge`, `security_auth`, `regression`) from acceptance criteria without mocking business logic or mutating application files. `SandboxRunner` runs checks (`install`, `build`, `lint`, `typecheck`, `unit_tests`, `browser_smoke`) in short-lived hardened sibling containers (`cap_drop=["ALL"]`, `no-new-privileges`, non-root `pwuser`, `read_only=True`, `network_mode="none"`, archive-API copy, hard timeouts, startup leftover cleanup). `install` is honestly recorded as `blocked` when no allow-listed mirror/proxy is configured (`P8-T4`), and `blocked`/`skipped` is never reported as `passed`.
 
-## 5. Control Loop and Retry Cap (Planned)
+## 5. Control Loop and Retry Cap
 
+Implemented in `server/app/flows/control_loop.py` (`BlinkBuildOrchestrator` using CrewAI `Flow` + `@persist(SQLiteFlowPersistence)` into `crewai_flows.db`) and exposed via `server/app/api/runs.py` (`POST /runs`, `GET /runs/{id}`, `GET /runs/{id}/events`, `POST /runs/{id}/cancel`):
+- **Flow sequence:** `understand` → `plan` → `execute` → `validate` → `decide` (with `retry_validation` loop when defects occur).
 - **Run statuses:** `queued` → `planning` → `generating` → `validating` ↔ `fixing` → terminal (`succeeded`, `escalated`, `failed`, `cancelled`).
-- **Retry cap:** Hard-coded at `3` per task in deterministic Python code (not in LLM prompts). The counter is persisted to SQLite *before* any fix is attempted. Reaching `3` immediately transitions the run to `escalated` and generates a human escalation report.
+- **Retry cap:** Hard-coded at `3` per task in deterministic Python code (`StateRepository.increment_retry()`). The counter is persisted to SQLite *before* any fix is attempted. Reaching `3` immediately transitions the run to `escalated` and builds an escalation report.
+- **SSE events (`server/app/api/events.py`):** `RunEventBus` streams ordered events with replay support (`Last-Event-ID`).
 
 ## 6. LLM Routing
 
