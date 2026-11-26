@@ -6,7 +6,7 @@
 - **Q-2 (deferred, D-016):** Groq model names, Ollama coder model name, and Gemini model name if used. Blocks real LLM calls in Phase 4+; human will supply values at Checkpoint H4.
 - **Q-3 (deferred, D-016):** Provider rate limits used for throttling settings (`max_rpm`). Deferred to Checkpoint H4.
 - **Q-4 (deferred, D-016):** Per-run limits for LLM calls, tokens, and wall-clock time. Human plans to set these after measuring real runs.
-- **Q-5:** SQLite layout: whether CrewAI's Flow persistence and our shared state use one shared SQLite file or two separate files. Proposed default: decide in `P3-T2` after reading CrewAI's current Flow persistence docs.
+- **Q-5 (resolved -> D-020):** SQLite layout: two separate SQLite files in `/data` (`blinkbuild.db` for Alembic-managed shared state, `crewai_flows.db` for CrewAI Flow persistence).
 - **Q-6:** How the sandbox install phase reaches packages (a package mirror or filtering proxy). Needs human approval at Checkpoint H2 before adding any dependency in `P8-T4`.
 - **Q-7:** Server hosting location for any deployment beyond local Docker Compose. Deferred to Checkpoint H6.
 
@@ -203,3 +203,23 @@
 - **Impact:** Only `client` (or another container on the Compose network) can reach `http://server:8000`.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Temporarily add `127.0.0.1:8000:8000` under `ports:` in `docker-compose.yml` if host-level debugging is needed.
+
+### D-020 — SQLite Database File Layout (Two Separate Files)
+- **Date and task ID:** 2026-11-26 | P3-T2
+- **Decision:** Use **two separate SQLite files** inside the same `/data` Docker named volume: `SQLITE_DB_PATH` (`/data/blinkbuild.db`) for Alembic-managed shared project state, and a separate file (`/data/crewai_flows.db`) for CrewAI's `SQLiteFlowPersistence`.
+- **Context:** CrewAI's `@persist` (`SQLiteFlowPersistence`) creates and manages its own `flow_states` table. Sharing one SQLite file with Alembic autogenerate would cause schema drift/table-drop conflicts.
+- **Options considered:** (a) Two separate SQLite files in `/data`; (b) Single shared SQLite file with `include_object` filtering in Alembic.
+- **Chosen option and why:** Two separate SQLite files — simplest, zero schema interference, and reduces single-file write contention between CrewAI's internal checkpoints and `StateRepository`.
+- **Impact:** Both files persist on `blinkbuild_sqlite_data:/data`.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Point both to the same file and add `include_object` filtering for `flow_states` in `server/alembic/env.py`.
+
+### D-021 — Phase 3 Persistence Stack & SQLite Concurrency Settings
+- **Date and task ID:** 2026-11-26 | P3-T1, P3-T3, P3-T4, P3-T5
+- **Decision:** Pin `SQLAlchemy==2.1.9` and `alembic==1.20.1` (`render_as_batch=True`); enable `PRAGMA foreign_keys=ON`, `PRAGMA busy_timeout=30000`, `PRAGMA journal_mode=WAL`, and `connect_args={"timeout": 30}` on every SQLite connection; enforce short transactions via `session_scope()`.
+- **Context:** SQLite disables foreign keys by default, has limited `ALTER TABLE` support, and raises `database is locked` immediately on concurrent writes without a busy timeout.
+- **Options considered:** (a) SQLAlchemy 2.x + Alembic batch mode; (b) SQLModel; (c) Raw `sqlite3`.
+- **Chosen option and why:** SQLAlchemy 2.x + Alembic batch mode (`PM.md` Section 7) with explicit Pydantic validation in `StateRepository` (`server/app/state/repository.py`).
+- **Impact:** All writes validate through `server/app/state/models.py` before touching SQLite.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Replace `server/app/state/db.py` and `repository.py`.

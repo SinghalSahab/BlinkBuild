@@ -134,3 +134,24 @@
   - `docker compose up -d --build`: **blocked** (`Cannot connect to the Docker daemon at unix:///Users/prakhar/.docker/run/docker.sock. Is the docker daemon running?`). Live container startup is not yet verified until Docker Desktop is started.
 - **Next step:** Commit Phase 2 changes and request human approval before starting **Phase 3: Shared project state (Pydantic + SQLite)** (and note the Docker daemon blocker for `docker compose up`).
 - **Linked decisions:** `D-004`, `D-005`, `D-018`, `D-019`.
+
+---
+
+### #0009 — 2026-11-26
+- **Task ID / Requirements:** `P3-T1`, `P3-T2`, `P3-T3`, `P3-T4`, `P3-T5`, `P3-T6`, `FR-22`, `FR-23`, `FR-25`, `NFR-04`
+- **Action:** Installed `SQLAlchemy==2.1.9` and `alembic==1.20.1`, implemented Pydantic v2 state models & status enums (`app/state/models.py`), SQLAlchemy ORM & SQLite engine (`app/state/db.py` with `PRAGMA foreign_keys=ON`, `WAL`, `busy_timeout=30000`, `timeout=30`), Alembic config (`render_as_batch=True`) & initial migration (`821a201dbed0`), and `StateRepository` (`app/state/repository.py`). Added and ran Phase 3 tests (`tests/test_shared_state.py`).
+- **Files touched:**
+  - `server/pyproject.toml` (modified)
+  - `server/app/state/__init__.py`, `server/app/state/models.py`, `server/app/state/db.py`, `server/app/state/repository.py` (created)
+  - `server/alembic.ini`, `server/alembic/env.py`, `server/alembic/script.py.mako`, `server/alembic/versions/821a201dbed0_initial_shared_state.py` (created)
+  - `server/tests/test_shared_state.py` (created)
+  - `docs/decisions.md`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `server/.venv/bin/pip install sqlalchemy alembic`
+  - `cd server && SQLITE_DB_PATH=/tmp/blinkbuild_alembic_gen.db .venv/bin/alembic revision --autogenerate -m "initial shared state"`
+  - `cd server && .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **8/8 passed** in `0.75s` (6 from Phase 2 + 2 new Phase 3 tests covering Alembic migration on clean SQLite, `PRAGMA foreign_keys=ON`, run transition validation, Pydantic validation rejection, FK integrity error, retry cap at 3, and persistence across engine dispose/re-open).
+  - Note: Container volume restart test (`P3-T6`) is pending Docker Desktop being started.
+- **Next step:** Commit Phase 3 changes and request human approval before starting **Phase 4: LLM layer** (and note Checkpoint H4 for deferred model strings/limits when real calls are needed).
+- **Linked decisions:** `D-005`, `D-007`, `D-020`, `D-021`.

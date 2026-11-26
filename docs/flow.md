@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P2-T6
+Last updated: 2026-11-26 | Task: P3-T6
 
 ## 1. What BlinkBuild Does Now
 
@@ -58,8 +58,10 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 7. Shared State
 
-- **Current:** Ephemeral React state in `client/app/generate/generation-content.tsx` (`steps`, `files`, `llmMessages`, `selectedFile`).
-- **Planned:** Pydantic models validated and persisted in a **SQLite** database file stored on a Docker named volume (`runs`, `plans`, `tasks`, `contracts`, `generated_files`, `test_cases`, `test_results`, `defects`, `agent_status`, `retry_counters`, `llm_usage`, `audit_entries`).
+- **Current:**
+  - `client`: Ephemeral React state in `client/app/generate/generation-content.tsx` (`steps`, `files`, `llmMessages`, `selectedFile`).
+  - `server`: Pydantic models (`server/app/state/models.py`) validated and persisted via `StateRepository` (`server/app/state/repository.py`) into SQLite (`SQLITE_DB_PATH`, Alembic-managed with `render_as_batch=True`, `PRAGMA foreign_keys=ON`, `WAL` mode, and `30s` busy timeout). Covers `runs`, `plans`, `tasks`, `contracts`, `generated_files`, `test_cases`, `test_results`, `defects`, `agent_status`, `retry_counters`, `llm_usage`, and `audit_entries`.
+- **Planned:** CrewAI Flow persistence will use a separate SQLite file (`/data/crewai_flows.db` on the same Docker named volume) in Phase 9 (`D-020`).
 
 ## 8. How the Client Displays Results
 
