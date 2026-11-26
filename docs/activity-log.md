@@ -222,3 +222,23 @@
   - `pytest -v`: **29/29 passed** in `5.97s` (21 existing + 8 new Phase 7 tests: CrewAI Manager agent, 6 activation prompts, and defect routing valid/re-ask/escalation). Live LLM planning accuracy is **not tested, waiting for `D-016` values (Checkpoint H4)**.
 - **Next step:** Commit Phase 7 and request human approval to start **Phase 8: QA runtime agent and sandbox** (including Checkpoint H2 for any sandbox package mirror/proxy if needed).
 - **Linked decisions:** `D-001`, `D-002`, `D-007`.
+
+---
+
+### #0014 — 2026-11-26
+- **Task ID / Requirements:** `P8-T1`..`P8-T12`, `FR-13`..`FR-17b`, `NFR-03`
+- **Action:** Installed `docker==7.2.0`, added `tecnativa/docker-socket-proxy:0.3.0` to `docker-compose.yml` (local dev only, residual risk documented in `D-024`), created `server/sandbox.Dockerfile` (`mcr.microsoft.com/playwright:v1.64.1-noble`, `pwuser`), implemented `SandboxRunner` (`server/app/sandbox/runner.py`), wired startup `cleanup_stale_sandboxes()` in `server/app/main.py`, implemented CrewAI QA agent + honest `TestResult`/`Defect` recording (`server/app/agents/qa.py`), and added Phase 8 tests (`tests/test_qa_and_sandbox.py`).
+- **Files touched:**
+  - `server/pyproject.toml`, `server/app/main.py`, `docker-compose.yml`, `.env.example` (modified)
+  - `server/sandbox.Dockerfile`, `server/app/sandbox/__init__.py`, `server/app/sandbox/runner.py`, `server/app/agents/qa.py`, `server/tests/test_qa_and_sandbox.py` (created)
+  - `docs/decisions.md`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `server/.venv/bin/pip install docker`
+  - `BLINKBUILD_SERVER_SECRET=check docker compose config --quiet`
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `docker compose config --quiet`: exited `0`.
+  - `pytest -v`: **34/34 passed** in `5.97s` (29 existing + 5 Phase 8 tests with mock Docker client verifying hardening options, archive tar copy, blocked `install`, timeout kill/remove, leftover cleanup, and QA defect logging).
+  - Live container execution checks (`P8-T12` against real Docker daemon): **not tested, blocked on Docker Desktop not running**.
+- **Next step:** Commit Phase 8 and request human approval to start **Phase 9: Control loop (CrewAI Flow)**.
+- **Linked decisions:** `D-012`, `D-013`, `D-024`, `D-025`.

@@ -243,3 +243,22 @@
 - **Impact:** All `server/app/agents/` modules use `crewai.Agent` cleanly.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Update pins in `server/pyproject.toml`.
+
+### D-024 — Pin Docker SDK `7.2.0` & Local Socket Proxy (`P8-T1`, `P8-T4`)
+- **Date and task ID:** 2026-11-26 | P8-T1, P8-T4
+- **Decision:** Pin `docker==7.2.0` in `server/pyproject.toml`; add `tecnativa/docker-socket-proxy:0.3.0` (`CONTAINERS=1`, `POST=1`, `DELETE=1`, `EXEC=0`, `BUILD=0`, `NETWORKS=0`, `VOLUMES=0`) to `docker-compose.yml` for local development only; keep sandbox `install` phase marked `blocked` until an allow-listed package mirror/proxy is approved at H2.
+- **Context:** Per `D-012`/`D-013`, only `server/app/sandbox/runner.py` talks to Docker, and generated code runs inside hardened sibling containers via Docker's archive API (`put_archive`, no host bind mounts, no `exec`).
+- **Residual risk (mandatory per D-013):** The socket proxy limits API endpoints but does **not** inspect container-create request bodies, so it cannot stop a privileged container or host mount if the `server` process were compromised. Before any public hosting, a **rootless Docker daemon** (or evaluated body-inspecting proxy) is required (Checkpoint H3).
+- **Impact:** Agents have zero Docker access; `install` check is honestly logged as `blocked` unless `SANDBOX_INSTALL_NETWORK` is configured.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Remove `docker-proxy` from `docker-compose.yml` and point `DOCKER_HOST` to a rootless Docker daemon.
+
+### D-025 — Playwright Sandbox Image & Hardening Trade-Off (`P8-T5`)
+- **Date and task ID:** 2026-11-26 | P8-T5
+- **Decision:** Use `mcr.microsoft.com/playwright:v1.64.1-noble` as the base for `server/sandbox.Dockerfile` running as non-root `pwuser`, with `init=True` and `shm_size="256m"` instead of `ipc_mode="host"`.
+- **Context:** Playwright's Docker guidance recommends `--init` and `--ipc=host` to avoid Chromium `/dev/shm` crashes and zombie processes. However, `ipc_mode="host"` weakens host isolation.
+- **Options considered:** (a) `ipc_mode="host"`; (b) `shm_size="256m"` + `init=True` + `mem_limit="2g"` + `read_only=True` with `tmpfs` for `/workspace` (`512m`) and `/tmp` (`128m,noexec`).
+- **Chosen option and why:** Option (b) — preserves host IPC isolation while giving Chromium adequate `/dev/shm`. Memory limit starts at `2g` to accommodate `tmpfs` + Node + Chromium (`P8-T2`).
+- **Impact:** Recorded in `server/app/sandbox/runner.py` and `server/sandbox.Dockerfile`.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Adjust `shm_size`, `mem_limit`, or `tmpfs` sizes in `SandboxRunner._hardened_create_kwargs()`.

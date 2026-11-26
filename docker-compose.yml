@@ -27,6 +27,32 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Local-dev only socket proxy (D-013): limits reachable API endpoints (no exec/builds),
+  # but does NOT inspect create-request bodies. Rootless Docker required before public hosting (H3).
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: blinkbuild_docker_proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1
+      - POST=1
+      - DELETE=1
+      - EXEC=0
+      - BUILD=0
+      - IMAGES=0
+      - NETWORKS=0
+      - VOLUMES=0
+      - AUTH=0
+      - SECRETS=0
+      - SERVICES=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+
   server:
     build:
       context: ./server
@@ -38,6 +64,10 @@ services:
     environment:
       - BLINKBUILD_SERVER_SECRET=${BLINKBUILD_SERVER_SECRET}
       - SQLITE_DB_PATH=/data/blinkbuild.db
+      - DOCKER_HOST=tcp://docker-proxy:2375
+      - SANDBOX_IMAGE=${SANDBOX_IMAGE:-blinkbuild-sandbox:latest}
+    depends_on:
+      - docker-proxy
     volumes:
       - blinkbuild_sqlite_data:/data
     logging:

@@ -6,13 +6,15 @@ from app.api.auth import verify_internal_auth
 from app.config.settings import get_settings
 from app.llm.config import LlmConfig
 from app.llm.router import LlmRouter
+from app.sandbox.runner import SandboxRunner
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Fail fast on startup if required environment variables are missing."""
+    """Fail fast on startup if required env vars are missing, and clean stale sandboxes."""
     get_settings()
     LlmConfig.from_env()
+    SandboxRunner().cleanup_stale_sandboxes()
     yield
 
 
