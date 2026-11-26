@@ -32,6 +32,8 @@ import { FileExplorer } from "@/components/FileExplorer"
 import { useWebContainer } from "@/hooks/useWebcontainers"
 import { PreviewFrame } from "@/components/PreviewFrame"
 import { StepType, Step } from "../lib/steps"
+import { AgentActivityPanel, AgentFeedEvent, EngineMode } from "@/components/AgentActivityPanel"
+import type { CreateRunResponse, RunSummaryResponse } from "@/lib/server-types"
 
 // Module-level — never resets on re-render
 let stepCounter = Date.now();
@@ -192,6 +194,14 @@ export default function GenerationContent() {
   const [templateDone, setTemplateDone] = useState(false) // ✅ phase tracking
   const [chatDone, setChatDone] = useState(false)         // ✅ phase tracking
   const [headerStatus, setHeaderStatus] = useState("Generating your website...")
+  const [engineMode, setEngineMode] = useState<EngineMode>("auto")
+  const [runId, setRunId] = useState<string | null>(null)
+  const [runStatus, setRunStatus] = useState<string>("queued")
+  const [agentEvents, setAgentEvents] = useState<AgentFeedEvent[]>([])
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null)
+  const [escalationReason, setEscalationReason] = useState<string | null>(null)
+  const [runSummary, setRunSummary] = useState<RunSummaryResponse | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
   const stepsEndRef = useRef<HTMLDivElement>(null)
   const revealQueueRef = useRef<Step[]>([])
   const revealTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -216,9 +226,116 @@ export default function GenerationContent() {
     startRevealQueue()
   }
 
-  // ── CORE LOGIC (unchanged) ──
+  const fetchRunSummary = async (id: string) => {
+    const res = await fetch(`/api/runs/${encodeURIComponent(id)}`)
+    if (!res.ok) return
+    const data: RunSummaryResponse = await res.json()
+    setRunSummary(data)
+    if (data.run.status) setRunStatus(data.run.status)
+    if (data.run.escalation_reason) setEscalationReason(data.run.escalation_reason)
+    if (data.artifact_xml) {
+      const parsed = parseXml(data.artifact_xml).map((x: Step) => ({
+        ...x,
+        id: nextId(),
+        status: "pending" as const,
+      }))
+      if (parsed.length > 0) {
+        setSteps(s => [...s, ...parsed])
+        enqueueSteps(parsed)
+      }
+    }
+  }
 
-  async function backendPrompt(prompt: string) {
+  const connectRunEvents = (id: string) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+    }
+    const es = new EventSource(`/api/runs/${encodeURIComponent(id)}/events`)
+    eventSourceRef.current = es
+    const eventTypes = [
+      "run_status", "plan_ready", "agent_started", "agent_finished",
+      "files_ready", "qa_started", "qa_result", "defect_logged",
+      "retry_started", "provider_fallback", "limit_reached",
+      "escalated", "succeeded", "error",
+    ]
+    eventTypes.forEach((evType) => {
+      es.addEventListener(evType, (e: MessageEvent) => {
+        try {
+          const parsed: AgentFeedEvent = JSON.parse(e.data)
+          setAgentEvents(prev => [...prev, parsed])
+          if (evType === "provider_fallback") {
+            setFallbackNotice(parsed.message)
+          } else if (evType === "files_ready" && typeof parsed.data?.artifact === "string") {
+            const agentSteps = parseXml(parsed.data.artifact).map((x: Step) => ({
+              ...x,
+              id: nextId(),
+              status: "pending" as const,
+            }))
+            setSteps(s => [...s, ...agentSteps])
+            enqueueSteps(agentSteps)
+          } else if (evType === "succeeded") {
+            setChatDone(true)
+            setLoading(false)
+            setRunStatus("succeeded")
+            setHeaderStatus("Your website is ready!")
+            fetchRunSummary(id)
+            es.close()
+          } else if (evType === "escalated" || evType === "error") {
+            setLoading(false)
+            setRunStatus(evType === "escalated" ? "escalated" : "failed")
+            setEscalationReason(parsed.message)
+            setHeaderStatus("Run requires attention")
+            fetchRunSummary(id)
+            es.close()
+          }
+        } catch {
+          // ignore malformed SSE payload
+        }
+      })
+    })
+  }
+
+  async function runLegacyPath(promptText: string, templateData: { prompts: string[]; uiPrompts: string[] }) {
+    const promptai: string[] = templateData.prompts
+    const uiMessages: PromptMessage[] = templateData.uiPrompts.map((p: string) => ({
+      role: "user" as const,
+      content: p,
+    }))
+    const messages = [
+      ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
+      ...uiMessages,
+      { role: "user" as const, content: promptText },
+    ]
+    const result = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    })
+    const dat = await result.json()
+    const chatResponse: string = dat.response ?? dat.content ?? dat.message ?? ""
+    if (chatResponse) {
+      const chatSteps = parseXml(chatResponse).map((x: Step) => ({
+        ...x,
+        id: nextId(),
+        status: "pending" as const,
+      }))
+      setSteps(s => [...s, ...chatSteps])
+      enqueueSteps(chatSteps)
+    }
+    setLlmMessages([
+      ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
+      ...uiMessages,
+      { role: "user" as const, content: promptText },
+      { role: "model" as const, content: chatResponse },
+    ])
+    setChatDone(true)
+    setLoading(false)
+    setHeaderStatus("Your website is ready!")
+  }
+
+  // ── CORE LOGIC (extended for multi-agent + legacy fallback) ──
+
+  async function backendPrompt(prompt: string, selectedMode: EngineMode = engineMode) {
     setHeaderStatus("Analyzing your prompt...")
     const res = await fetch("/api/template", {
       method: "POST",
@@ -230,7 +347,6 @@ export default function GenerationContent() {
 
     if (!data?.prompts?.length) throw new Error("No prompts received from the server")
 
-    const promptai: string[] = data.prompts
     const uiprompts: string = data.uiPrompts[0]
 
     const templateSteps = parseXml(uiprompts).map((x: Step) => ({
@@ -243,53 +359,38 @@ export default function GenerationContent() {
     setTemplateDone(true)
     setHeaderStatus("Building your website...")
 
-    const uiMessages: PromptMessage[] = data.uiPrompts.map((p: string) => ({
-      role: "user" as const,
-      content: p,
-    }))
-
-    const messages = [
-      ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
-      ...uiMessages,
-      { role: "user" as const, content: prompt },
-    ]
-
-    const result = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
-    })
-    const dat = await result.json()
-    console.log("Chat response:", JSON.stringify(dat, null, 2))
-
-    const chatResponse: string = dat.response ?? dat.content ?? dat.message ?? ""
-
-    if (chatResponse) {
-      const chatSteps = parseXml(chatResponse).map((x: Step) => ({
-        ...x,
-        id: nextId(),
-        status: "pending" as const,
-      }))
-      setSteps(s => [...s, ...chatSteps])
-      enqueueSteps(chatSteps)
+    if (selectedMode === "legacy") {
+      await runLegacyPath(prompt, data)
+      return
     }
 
-    setLlmMessages([
-      ...promptai.map((p: string) => ({ role: "user" as const, content: p })),
-      ...uiMessages,
-      { role: "user" as const, content: prompt },
-      { role: "model" as const, content: chatResponse },
-    ])
-
-    setChatDone(true)
-    setLoading(false)
-    setHeaderStatus("Your website is ready!")
+    try {
+      const templateType = uiprompts.includes("vite-react-typescript-starter") ? "react" : "node"
+      const runRes = await fetch("/api/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, template_type: templateType, mode: selectedMode }),
+      })
+      if (!runRes.ok) {
+        throw new Error(`Multi-agent server returned ${runRes.status}`)
+      }
+      const created: CreateRunResponse = await runRes.json()
+      setRunId(created.run_id)
+      setRunStatus(created.status)
+      sessionStorage.setItem("blinkbuild_last_run_id", created.run_id)
+      connectRunEvents(created.run_id)
+    } catch (err) {
+      setFallbackNotice(`Multi-agent server unavailable (${String(err)}), using Legacy Single-Call path`)
+      setEngineMode("legacy")
+      await runLegacyPath(prompt, data)
+    }
   }
 
   useEffect(() => {
     backendPrompt(prompt)
     return () => {
       if (revealTimerRef.current) clearInterval(revealTimerRef.current)
+      if (eventSourceRef.current) eventSourceRef.current.close()
     }
   }, [])
 
@@ -930,6 +1031,28 @@ export default function GenerationContent() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              aria-label="Generation Mode"
+              value={engineMode}
+              onChange={(e) => {
+                const nextMode = e.target.value as EngineMode
+                setEngineMode(nextMode)
+                setLoading(true)
+                setIsReady(false)
+                setChatDone(false)
+                setAgentEvents([])
+                setFallbackNotice(null)
+                setEscalationReason(null)
+                backendPrompt(prompt, nextMode)
+              }}
+              className="gen-action-btn gen-btn-outline"
+              style={{ background: '#0d0d14', color: 'rgba(255,255,255,0.8)' }}
+            >
+              <option value="auto">Mode: Auto (CrewAI)</option>
+              <option value="fast">Mode: Fast (Groq)</option>
+              <option value="local">Mode: Local (Ollama)</option>
+              <option value="legacy">Mode: Legacy Single-Call</option>
+            </select>
             <button
               className="gen-action-btn gen-btn-outline"
               onClick={() => downloadFilesAsZip(files)}
@@ -1032,8 +1155,11 @@ export default function GenerationContent() {
             )}
           </div>
 
-          {/* Send area */}
+          {/* Send area (always Legacy Single-Call Path per D-014) */}
           <div style={{ padding: '12px 16px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.03em' }}>
+              Follow-up edits (Legacy Single-Call Path)
+            </span>
             <textarea
               className="gen-send-textarea"
               placeholder="Ask for changes..."
@@ -1098,6 +1224,9 @@ export default function GenerationContent() {
               </TabsTrigger>
               <TabsTrigger value="preview" className="gen-tab-trigger data-[state=active]:active">
                 Preview
+              </TabsTrigger>
+              <TabsTrigger value="agents" className="gen-tab-trigger data-[state=active]:active">
+                Agents &amp; QA
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1176,6 +1305,35 @@ export default function GenerationContent() {
                   <PreviewFrame webContainer={webcontainer} files={files} />
                 </div>
               )}
+            </div>
+          </TabsContent>
+
+          {/* Agents & QA tab */}
+          <TabsContent value="agents" style={{ flex: 1, margin: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            <div style={{ flex: 1, border: '1px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 14px 14px', overflow: 'hidden', height: '100%' }}>
+              <AgentActivityPanel
+                mode={engineMode}
+                runId={runId}
+                runStatus={runStatus}
+                fallbackNotice={fallbackNotice}
+                escalationReason={escalationReason}
+                events={agentEvents}
+                summary={runSummary}
+                onReconnect={() => {
+                  const target = runId || sessionStorage.getItem("blinkbuild_last_run_id")
+                  if (target) {
+                    setRunId(target)
+                    connectRunEvents(target)
+                    fetchRunSummary(target)
+                  }
+                }}
+                onCancel={async () => {
+                  if (!runId) return
+                  await fetch(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" })
+                  setRunStatus("cancelled")
+                  setLoading(false)
+                }}
+              />
             </div>
           </TabsContent>
         </Tabs>

@@ -258,3 +258,21 @@
   - Note: Mid-run container kill/resume (`P9-T4` live process restart) is backed by `SQLiteFlowPersistence` (`flow_states` verified), while live container restart remains pending Docker Desktop.
 - **Next step:** Commit Phase 9 and request human approval to start **Phase 10: Client integration**.
 - **Linked decisions:** `D-001`, `D-007`, `D-020`.
+
+---
+
+### #0016 — 2026-11-26
+- **Task ID / Requirements:** `P10-T1`..`P10-T8`, `FR-01`..`FR-04`, `FR-31`..`FR-35`, `NFR-08`
+- **Action:** Generated `client/lib/server-types.ts` directly from FastAPI's OpenAPI schema (`16` schemas), added Clerk-authenticated Next.js proxy & SSE relay routes (`client/lib/server-proxy.ts`, `client/app/api/runs/**`), added `client/components/AgentActivityPanel.tsx`, and additively wired mode selector, SSE handling, reconnect, cancel, and `Agents & QA` tab into `client/app/generate/generation-content.tsx` while keeping follow-up chat on `/api/chat` (`D-014`).
+- **Files touched:**
+  - `client/lib/server-types.ts`, `client/lib/server-proxy.ts`, `client/components/AgentActivityPanel.tsx` (created)
+  - `client/app/api/runs/route.ts`, `client/app/api/runs/[id]/route.ts`, `client/app/api/runs/[id]/events/route.ts`, `client/app/api/runs/[id]/cancel/route.ts` (created)
+  - `client/app/generate/generation-content.tsx`, `.env.example`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && ... python -c "... app.openapi() ..."` (OpenAPI -> TypeScript codegen)
+  - `cd client && npm run build`
+- **Result:**
+  - `npm run build` exited `0`: Next.js `16.2.3` Turbopack compiled in `6.6s`, TypeScript finished in `8.7s`, `8/8` static/dynamic pages built cleanly including `/api/runs`, `/api/runs/[id]`, `/api/runs/[id]/cancel`, `/api/runs/[id]/events`.
+  - Live browser E2E (`P10-T8` with Clerk sign-in + running Python server): **not tested** without `.env.local` Clerk/LLM keys and running containers.
+- **Next step:** Commit Phase 10 and request human approval to start **Phase 11: Colab Ollama demo mode**.
+- **Linked decisions:** `D-008`, `D-010`, `D-014`.

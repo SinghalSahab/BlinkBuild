@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P9-T7
+Last updated: 2026-11-26 | Task: P10-T8
 
 ## 1. What BlinkBuild Does Now
 
@@ -71,8 +71,12 @@ Implemented in `server/app/flows/control_loop.py` (`BlinkBuildOrchestrator` usin
 
 ## 8. How the Client Displays Results
 
-- **Current:** `GenerationContent` renders a 280px left panel (phase pills, progress bar capped at 85% until chat completes, 350 ms queued step list, follow-up chat) and a tabbed right panel (`Code` with `FileExplorer` + read-only Monaco `CodeEditor`; `Preview` with `PreviewFrame` running `npm install && npm run dev` in WebContainers).
-- **Planned:** Additive panels on `/generate` consuming SSE events for live agent activity, test results, defects, retry counts, provider fallback notices, and escalation reports, while keeping the legacy single-call path and follow-up chat intact.
+- **Current (`client/app/generate/generation-content.tsx` & `client/components/AgentActivityPanel.tsx`):**
+  - Header includes a mode selector (`auto`, `fast`, `local`, or `legacy` single-call baseline).
+  - Multi-agent runs call Next.js proxy routes (`client/app/api/runs/*`) which verify Clerk `auth()`, attach `X-BlinkBuild-Secret` + `X-Clerk-User-Id`, and relay SSE events (`EventSource` with `Last-Event-ID` reconnect & `sessionStorage` run ID recovery).
+  - `files_ready` `<boltArtifact>` payloads feed directly into `parseXml()` → 350 ms `revealQueueRef` → `FileExplorer` + read-only Monaco `CodeEditor` + WebContainers `PreviewFrame`.
+  - The `Agents & QA` tab displays live SSE events, fallback notices, retry counters, sandbox `test_results`, `defects`, escalation reports, and `Cancel Run` / `Reconnect` controls.
+  - Follow-up chat messages stay on the legacy `/api/chat` single-call path (`D-014`) and are labeled `"Follow-up edits (Legacy Single-Call Path)"`.
 
 ## 9. How to Run Locally
 
