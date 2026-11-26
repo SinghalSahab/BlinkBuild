@@ -5,7 +5,7 @@ import uuid
 from typing import Any, Callable, Literal
 from crewai import Agent
 from pydantic import BaseModel, Field, ValidationError
-from app.agents.schemas import FileEntry
+from app.agents.schemas import FileEntry, strip_json_fences
 from app.sandbox.runner import SandboxCheckOutcome, SandboxRunner
 from app.state.models import (
     Contract,
@@ -88,7 +88,7 @@ def generate_qa_tests(
 
     for attempt in range(2):
         try:
-            candidate_parsed = QATestSynthesisOutput.model_validate_json(candidate)
+            candidate_parsed = QATestSynthesisOutput.model_validate_json(strip_json_fences(candidate))
             for tf in candidate_parsed.test_files:
                 if tf.path in app_files:
                     raise ValueError(f"QA must not overwrite application file: {tf.path}")

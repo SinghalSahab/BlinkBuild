@@ -73,6 +73,19 @@ def enforce_ownership(output: AgentFileOutput, allowed_prefixes: list[str]) -> N
             )
 
 
+def strip_json_fences(raw: str) -> str:
+    """Strip markdown ```json ... ``` code fences if an LLM wraps JSON in them."""
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
 def parse_agent_output_with_reask(
     raw_json: str,
     reask_fn: Callable[[str], str],
@@ -84,7 +97,7 @@ def parse_agent_output_with_reask(
 
     for attempt in range(2):
         try:
-            parsed = AgentFileOutput.model_validate_json(candidate)
+            parsed = AgentFileOutput.model_validate_json(strip_json_fences(candidate))
             if allowed_prefixes:
                 enforce_ownership(parsed, allowed_prefixes)
             return parsed

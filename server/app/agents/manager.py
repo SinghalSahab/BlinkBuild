@@ -5,6 +5,7 @@ import uuid
 from typing import Any, Callable, Literal
 from crewai import Agent
 from pydantic import BaseModel, Field, ValidationError, model_validator
+from app.agents.schemas import strip_json_fences
 from app.state.models import (
     AgentOwner,
     AuditEntry,
@@ -138,7 +139,7 @@ def plan_run(
 
     for attempt in range(2):
         try:
-            parsed = ManagerPlanOutput.model_validate_json(candidate)
+            parsed = ManagerPlanOutput.model_validate_json(strip_json_fences(candidate))
             break
         except (ValidationError, ValueError) as exc:
             last_err = exc
@@ -229,7 +230,7 @@ def route_defect(
 
     for attempt in range(2):
         try:
-            decision = DefectRoutingDecision.model_validate_json(candidate)
+            decision = DefectRoutingDecision.model_validate_json(strip_json_fences(candidate))
             if repo:
                 repo.append_audit(
                     AuditEntry(

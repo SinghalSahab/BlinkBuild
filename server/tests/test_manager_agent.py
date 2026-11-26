@@ -145,3 +145,32 @@ def test_defect_routing_valid_reask_and_escalation(tmp_path):
             contract=contract,
             call_llm=lambda _p: json.dumps({"owner": "qa", "reason": "invalid"}),
         )
+
+
+def test_plan_run_strips_markdown_json_fences():
+    fenced = '```json\n' + json.dumps(
+        {
+            "activated_agents": ["frontend", "qa"],
+            "tasks": [
+                {
+                    "owner": "frontend",
+                    "title": "UI",
+                    "description": "Build UI",
+                    "acceptance_criteria": ["Renders"],
+                    "size_hint": "short",
+                }
+            ],
+            "contract": None,
+            "summary": "UI plan",
+        }
+    ) + '\n```'
+    plan, tasks, contract = plan_run(
+        run_id="run-fence",
+        prompt="Build UI",
+        template_type="react",
+        constraints=WEBCONTAINER_CONSTRAINTS,
+        call_llm=lambda _p: fenced,
+    )
+    assert len(tasks) == 1
+    assert contract is None
+    assert [a.value for a in plan.activated_agents] == ["frontend", "qa"]
