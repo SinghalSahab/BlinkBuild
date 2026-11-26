@@ -243,7 +243,7 @@ class LlmRouter:
         if not providers:
             raise AllProvidersFailedError("No configured LLM providers available")
 
-        last_error: str | None = None
+        errors: list[str] = []
         first_provider = providers[0]
 
         for idx, provider in enumerate(providers):
@@ -272,7 +272,8 @@ class LlmRouter:
 
                 notice = None
                 if idx > 0:
-                    notice = f"{first_provider} unavailable ({last_error}), using {provider}"
+                    prev_err = "; ".join(errors)
+                    notice = f"{first_provider} unavailable ({prev_err}), using {provider}"
                     if self.repo:
                         self.repo.append_audit(
                             AuditEntry(
@@ -301,9 +302,8 @@ class LlmRouter:
                     fallback_notice=notice,
                 )
             except (httpx.HTTPError, ValueError) as exc:
-                last_error = type(exc).__name__
-                if isinstance(exc, httpx.HTTPStatusError):
-                    last_error = f"HTTP {exc.response.status_code}"
+                err_str = f"HTTP {exc.response.status_code}" if isinstance(exc, httpx.HTTPStatusError) else type(exc).__name__
+                errors.append(f"{provider}: {err_str}")
                 continue
 
-        raise AllProvidersFailedError(f"All providers failed ({', '.join(providers)}): {last_error}")
+        raise AllProvidersFailedError(f"All providers failed ({'; '.join(errors)})")
