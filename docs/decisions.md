@@ -233,3 +233,13 @@
 - **Impact:** All LLM config/limit env vars are listed in `.env.example` with no values.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Swap HTTP client in `server/app/llm/router.py`.
+
+### D-023 — Pin CrewAI `1.15.45` and Pydantic `2.12.5`
+- **Date and task ID:** 2026-11-26 | P5-T1
+- **Decision:** Pin `crewai==1.15.45` and align `pydantic==2.12.5` in `server/pyproject.toml`; set `CREWAI_STORAGE_DIR=/data/crewai` and `HOME=/data` in `server/Dockerfile`.
+- **Context:** `crewai==1.15.45` requires `pydantic<2.13,>=2.11.9`, and `crewai_core` creates a `credentials` directory under `HOME` / `CREWAI_STORAGE_DIR` on import.
+- **Options considered:** (a) Pin `crewai==1.15.45` + `pydantic==2.12.5`; (b) Downgrade or avoid CrewAI.
+- **Chosen option and why:** Pin `crewai==1.15.45` + `pydantic==2.12.5` (`D-001`, `NFR-09`), verified via `pip install crewai` and `pytest`.
+- **Impact:** All `server/app/agents/` modules use `crewai.Agent` cleanly.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Update pins in `server/pyproject.toml`.

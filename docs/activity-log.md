@@ -173,3 +173,22 @@
   - Live provider calls against Groq, Local (Ollama), or Gemini: **not tested, waiting for D-016 values** (Checkpoint H4).
 - **Next step:** Commit Phase 4 and request human approval to start **Phase 5: Backend runtime agent (first agent, end to end)**.
 - **Linked decisions:** `D-006`, `D-015`, `D-016`, `D-022`.
+
+---
+
+### #0011 — 2026-11-26
+- **Task ID / Requirements:** `P5-T1`..`P5-T5`, `FR-09`, `FR-10`, `FR-12`
+- **Action:** Installed `crewai==1.15.45` (aligning `pydantic==2.12.5`), carried over WebContainer constraints from `client/app/lib/prompt.ts` (`app/agents/constraints.py`), implemented Pydantic I/O & path-traversal/re-ask validation (`app/agents/schemas.py`), `<boltArtifact>` merge & duplicate-path conflict detection (`app/agents/merge.py`), CrewAI Backend agent (`app/agents/backend.py`), and Phase 5 tests (`tests/test_backend_agent.py`).
+- **Files touched:**
+  - `server/pyproject.toml`, `server/Dockerfile` (modified)
+  - `server/app/agents/__init__.py`, `server/app/agents/constraints.py`, `server/app/agents/schemas.py`, `server/app/agents/merge.py`, `server/app/agents/backend.py` (created)
+  - `server/tests/conftest.py`, `server/tests/test_backend_agent.py` (created)
+  - `docs/decisions.md`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `server/.venv/bin/pip install crewai`
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **18/18 passed** in `5.91s` (including CrewAI `Agent` creation, path-traversal rejection, 1-reask Pydantic validation, duplicate-path `MergeConflictError`, and Node.js verification of `<boltArtifact>` against `client/app/lib/steps.ts` `parseXml()` regexes).
+  - Live LLM backend generation: **not tested, waiting for `D-016` values (Checkpoint H4)**.
+- **Next step:** Commit Phase 5 and request human approval to start **Phase 6: Frontend runtime agent and the contract**.
+- **Linked decisions:** `D-001`, `D-002`, `D-023`.

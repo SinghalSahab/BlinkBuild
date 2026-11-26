@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P4-T8
+Last updated: 2026-11-26 | Task: P5-T5
 
 ## 1. What BlinkBuild Does Now
 
@@ -35,12 +35,12 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 4. If QA fails and task retries `< 3`, deterministic code increments the retry counter, Manager routes the defect to `frontend` or `backend`, the owner fixes, and QA re-runs failed checks plus regression.
 5. If all checks pass, the run reaches `succeeded` and the merged `<boltArtifact>` feeds into the existing `parseXml()` → file tree → Monaco → WebContainer pipeline. If retries reach `3` or a per-run limit hits, the run stops as `escalated` with a report.
 
-## 4. Runtime Agents (Planned)
+## 4. Runtime Agents
 
-- **Manager:** Reads the user prompt, template type, and WebContainer constraints; produces a structured plan (activated agents, tasks with testable acceptance criteria, and an API contract when both Frontend and Backend are active); routes QA defects to `frontend` or `backend`. Never writes application code, never counts retries, and never decides to continue past the retry cap.
-- **Frontend:** Writes UI code (components, styles, client routing) for the generated project in the chosen template stack. Receives only its task, the contract, owned files, and WebContainer constraints. Never writes server code, edits Backend-owned files, or invents routes outside the contract.
-- **Backend:** Writes server code (routes, logic, data handling) for the generated project. Receives only its task, the contract, owned files, and WebContainer constraints. Never writes UI code, edits Frontend-owned files, or uses native binaries incompatible with WebContainers.
-- **QA:** Derives test cases (happy path, negative/edge, security/auth, regression) from acceptance criteria and runs real checks (install, build, lint, type-check, unit tests, browser smoke test) inside hardened sibling Docker containers. Never edits application code, never mocks the logic under test, and never reports a pass for a check that did not run.
+- **Backend (implemented in `server/app/agents/backend.py`):** CrewAI `Agent` (`Backend Software Engineer`) that writes server-side routes, logic, and data handling strictly following the API contract, acceptance criteria, and WebContainer constraints (`server/app/agents/constraints.py`). Returns `AgentFileOutput` JSON validated by Pydantic (`server/app/agents/schemas.py`) with one automatic re-ask on invalid output and path-traversal/ownership checks; `server/app/agents/merge.py` converts validated files into `<boltArtifact>` XML compatible with `client/app/lib/steps.ts` `parseXml()`. Never writes UI code, edits Frontend-owned files, or uses native binaries.
+- **Manager (Planned, Phase 7):** Reads the user prompt, template type, and WebContainer constraints; produces a structured plan (activated agents, tasks with testable acceptance criteria, and an API contract when both Frontend and Backend are active); routes QA defects to `frontend` or `backend`. Never writes application code, never counts retries, and never decides to continue past the retry cap.
+- **Frontend (Planned, Phase 6):** Writes UI code (components, styles, client routing) for the generated project in the chosen template stack. Receives only its task, the contract, owned files, and WebContainer constraints. Never writes server code, edits Backend-owned files, or invents routes outside the contract.
+- **QA (Planned, Phase 8):** Derives test cases (happy path, negative/edge, security/auth, regression) from acceptance criteria and runs real checks (install, build, lint, type-check, unit tests, browser smoke test) inside hardened sibling Docker containers. Never edits application code, never mocks the logic under test, and never reports a pass for a check that did not run.
 
 ## 5. Control Loop and Retry Cap (Planned)
 

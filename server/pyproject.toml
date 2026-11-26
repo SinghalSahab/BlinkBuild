@@ -10,11 +10,12 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
   "fastapi==0.165.0",
   "uvicorn[standard]==0.54.0",
-  "pydantic==2.14.4",
+  "pydantic==2.12.5",
   "pydantic-settings==2.16.3",
   "SQLAlchemy==2.1.9",
   "alembic==1.20.1",
   "httpx==0.28.1",
+  "crewai==1.15.45",
 ]
 
 [project.optional-dependencies]
