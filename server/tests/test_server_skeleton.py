@@ -7,8 +7,13 @@ from app.main import app
 
 
 @pytest.fixture(autouse=True)
-def reset_settings_cache():
+def reset_settings_cache(monkeypatch):
     get_settings.cache_clear()
+    monkeypatch.setenv("LLM_MODEL_MANAGER", "stub-manager")
+    monkeypatch.setenv("LLM_MODEL_FRONTEND", "stub-frontend")
+    monkeypatch.setenv("LLM_MODEL_BACKEND", "stub-backend")
+    monkeypatch.setenv("LLM_MODEL_QA", "stub-qa")
+    monkeypatch.setenv("GROQ_API_KEY", "stub-groq-key")
     yield
     get_settings.cache_clear()
 

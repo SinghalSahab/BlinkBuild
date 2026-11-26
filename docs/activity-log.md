@@ -155,3 +155,21 @@
   - Note: Container volume restart test (`P3-T6`) is pending Docker Desktop being started.
 - **Next step:** Commit Phase 3 changes and request human approval before starting **Phase 4: LLM layer** (and note Checkpoint H4 for deferred model strings/limits when real calls are needed).
 - **Linked decisions:** `D-005`, `D-007`, `D-020`, `D-021`.
+
+---
+
+### #0010 — 2026-11-26
+- **Task ID / Requirements:** `P4-T1`..`P4-T8`, `FR-26`..`FR-30`
+- **Action:** Implemented `server/app/llm/config.py` (env-only config with zero hardcoded model strings or limits), `server/app/llm/router.py` (`LlmRouter`, `ProviderThrottler`, `RunBudgetTracker`, `RunLimitExceeded`, fallback chain, usage & audit recording), exposed authenticated `GET /llm/status` in `server/app/main.py`, updated `.env.example` and `server/pyproject.toml`, and ran stubbed provider tests (`tests/test_llm_layer.py`).
+- **Files touched:**
+  - `server/app/llm/__init__.py`, `server/app/llm/config.py`, `server/app/llm/router.py` (created)
+  - `server/app/main.py`, `server/pyproject.toml`, `.env.example` (modified)
+  - `server/tests/test_server_skeleton.py` (modified), `server/tests/test_llm_layer.py` (created)
+  - `docs/decisions.md`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **13/13 passed** in `1.12s` (6 Phase 2 + 2 Phase 3 + 5 Phase 4 stubbed provider tests).
+  - Live provider calls against Groq, Local (Ollama), or Gemini: **not tested, waiting for D-016 values** (Checkpoint H4).
+- **Next step:** Commit Phase 4 and request human approval to start **Phase 5: Backend runtime agent (first agent, end to end)**.
+- **Linked decisions:** `D-006`, `D-015`, `D-016`, `D-022`.

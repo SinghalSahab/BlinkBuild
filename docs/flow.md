@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P3-T6
+Last updated: 2026-11-26 | Task: P4-T8
 
 ## 1. What BlinkBuild Does Now
 
@@ -49,12 +49,15 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 ## 6. LLM Routing
 
-- **Current:** Hard-coded to `gemini-2.5-flash` in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts` using `process.env.API_KEY`.
-- **Planned:** Configured per agent via environment variables (exact model strings and limits deferred per `D-016`):
-  - `fast` mode: Groq.
-  - `local` mode: Ollama on Google Colab via ngrok (with `ngrok-skip-browser-warning` header and bearer token; demo only).
-  - `auto` mode: Manager's per-task size hint (`short` → Groq, `long` → Local if healthy).
-  - Fallback chain: Local → Groq → Gemini (if key configured), with audit logging and UI notification.
+- **Client (legacy path):** Hard-coded to `gemini-2.5-flash` in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts` using `process.env.API_KEY`.
+- **Server (`server/app/llm/`):** Implemented with environment-only configuration (`LLM_MODEL_MANAGER`, `LLM_MODEL_FRONTEND`, `LLM_MODEL_BACKEND`, `LLM_MODEL_QA`; exact model strings and limits deferred per `D-016`):
+  - `fast` mode: Groq (`GROQ_API_KEY`).
+  - `local` mode: Ollama on Google Colab via `OLLAMA_BASE_URL` (sends `ngrok-skip-browser-warning: true` and optional `OLLAMA_BEARER_TOKEN`; demo only).
+  - `auto` mode: uses `local` for `long` tasks if healthy, otherwise `groq`.
+  - Fallback chain (`LLM_FALLBACK_CHAIN`, default `local,groq,gemini`): on HTTP/connection error, falls back to next configured provider, logs `PROVIDER_FALLBACK` in `audit_entries`, and returns a fallback notice.
+  - Throttling (`LLM_RPM_GROQ`, `LLM_RPM_OLLAMA`, `LLM_RPM_GEMINI`): sliding 60s window when set; off with warning when unset.
+  - Per-run limits (`RUN_MAX_LLM_CALLS`, `RUN_MAX_TOKENS`, `RUN_MAX_SECONDS`): raises `RunLimitExceeded` when reached; writes `LIMIT_WARNING` audit entry when unset.
+  - Health endpoint: `GET /llm/status` (authenticated).
 
 ## 7. Shared State
 

@@ -4,12 +4,15 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from app.api.auth import verify_internal_auth
 from app.config.settings import get_settings
+from app.llm.config import LlmConfig
+from app.llm.router import LlmRouter
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Fail fast on startup if required environment variables are missing."""
     get_settings()
+    LlmConfig.from_env()
     yield
 
 
@@ -25,6 +28,13 @@ def health() -> dict[str, str]:
     """Unauthenticated health check endpoint."""
     settings = get_settings()
     return {"status": "ok", "version": settings.app_version}
+
+
+@app.get("/llm/status")
+def llm_status(_user_id: str = Depends(verify_internal_auth)) -> dict[str, object]:
+    """Authenticated LLM provider health and configuration status."""
+    router = LlmRouter(LlmConfig.from_env())
+    return router.status_summary()
 
 
 @app.get("/protected/ping")

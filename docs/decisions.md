@@ -223,3 +223,13 @@
 - **Impact:** All writes validate through `server/app/state/models.py` before touching SQLite.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Replace `server/app/state/db.py` and `repository.py`.
+
+### D-022 — Phase 4 LLM Layer Env Vars & Runtime `httpx` Dependency
+- **Date and task ID:** 2026-11-26 | P4-T1..P4-T7
+- **Decision:** Promote `httpx==0.28.1` to runtime dependencies in `server/pyproject.toml` and standardize LLM env var names: `LLM_MODEL_MANAGER`, `LLM_MODEL_FRONTEND`, `LLM_MODEL_BACKEND`, `LLM_MODEL_QA`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_BEARER_TOKEN`, `LLM_FALLBACK_CHAIN`, `LLM_RPM_GROQ`, `LLM_RPM_OLLAMA`, `LLM_RPM_GEMINI`, `RUN_MAX_LLM_CALLS`, `RUN_MAX_TOKENS`, `RUN_MAX_SECONDS`.
+- **Context:** `httpx` was already installed as a dev dependency; `server/app/llm/router.py` uses it for provider health checks and HTTP calls (supporting `MockTransport` in tests) without hardcoding any model strings or limits (`D-016`).
+- **Options considered:** (a) `httpx==0.28.1`; (b) `urllib.request` / `requests`.
+- **Chosen option and why:** `httpx==0.28.1` — already pinned in `server/.venv` and clean `MockTransport` support for `P4-T8`.
+- **Impact:** All LLM config/limit env vars are listed in `.env.example` with no values.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Swap HTTP client in `server/app/llm/router.py`.
