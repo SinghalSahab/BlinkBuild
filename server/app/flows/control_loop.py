@@ -46,6 +46,7 @@ class FlowRunState(BaseModel):
     artifact_xml: str = ""
     qa_passed: bool = False
     cancelled: bool = False
+    error_message: str | None = None
     escalation_report: dict[str, Any] | None = None
 
 
@@ -157,14 +158,18 @@ class BlinkBuildOrchestrator:
                 orchestrator.event_bus.publish(
                     run_id=run_id, event_type="agent_started", message="Manager planning"
                 )
-                plan_out, tasks, contract = plan_run(
-                    run_id=run_id,
-                    prompt=self.state.prompt,
-                    template_type=self.state.template_type,
-                    constraints=WEBCONTAINER_CONSTRAINTS,
-                    call_llm=lambda p: orchestrator.call_agent_llm(AgentOwner.MANAGER, p, "short"),
-                    repo=orchestrator.repo,
-                )
+                try:
+                    plan_out, tasks, contract = plan_run(
+                        run_id=run_id,
+                        prompt=self.state.prompt,
+                        template_type=self.state.template_type,
+                        constraints=WEBCONTAINER_CONSTRAINTS,
+                        call_llm=lambda p: orchestrator.call_agent_llm(AgentOwner.MANAGER, p, "short"),
+                        repo=orchestrator.repo,
+                    )
+                except Exception as exc:
+                    self.state.error_message = f"{type(exc).__name__}: {exc}"
+                    raise
                 self.state.activated_agents = [a.value for a in plan_out.activated_agents]
                 self.state.task_ids = [t.id for t in tasks]
                 self.state.primary_task_id = tasks[0].id
@@ -478,6 +483,26 @@ class BlinkBuildOrchestrator:
         flow = _RunFlow()
         try:
             flow.kickoff()
+            current = self.repo.get_run(run_id)
+            if current and current.status not in (
+                RunStatus.SUCCEEDED,
+                RunStatus.ESCALATED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+            ):
+                reason = flow.state.error_message or f"Flow stopped unexpectedly at status '{current.status.value}'"
+                self.repo.append_audit(
+                    AuditEntry(
+                        id=f"aud-{uuid.uuid4().hex[:12]}",
+                        run_id=run_id,
+                        category="RUN_ERROR",
+                        actor="flow",
+                        message=reason,
+                    )
+                )
+                self.repo.update_run_status(run_id, RunStatus.FAILED, escalation_reason=reason)
+                self.event_bus.publish(run_id=run_id, event_type="error", message=reason)
+                self.event_bus.close(run_id)
         except RunLimitExceeded as exc:
             reason = str(exc)
             self.repo.append_audit(
