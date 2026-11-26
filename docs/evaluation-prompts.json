@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "description": "Fixed 10-prompt evaluation set for BlinkBuild (P13-T1: 3 UI-only, 3 backend-only, 4 full-stack including 2 auth-related).",
+  "prompts": [
+    {
+      "id": "EVAL-01",
+      "category": "ui_only",
+      "involves_auth": false,
+      "expected_agents": ["frontend", "qa"],
+      "prompt": "Build a sleek SaaS landing page for an analytics tool with a hero section, 3-tier pricing table, and FAQ accordion.",
+      "expected_acceptance_points": [
+        "Hero CTA renders",
+        "Three pricing tiers display cleanly",
+        "FAQ accordion toggles open/closed"
+      ]
+    },
+    {
+      "id": "EVAL-02",
+      "category": "ui_only",
+      "involves_auth": false,
+      "expected_agents": ["frontend", "qa"],
+      "prompt": "Create a responsive photography portfolio gallery with category filter tabs and a lightbox modal.",
+      "expected_acceptance_points": [
+        "Category filter updates visible items",
+        "Clicking an image opens and closes the lightbox modal"
+      ]
+    },
+    {
+      "id": "EVAL-03",
+      "category": "ui_only",
+      "involves_auth": false,
+      "expected_agents": ["frontend", "qa"],
+      "prompt": "Build a Pomodoro focus timer web app with start/pause/reset controls and customizable work/break durations.",
+      "expected_acceptance_points": [
+        "Timer counts down when started and pauses cleanly",
+        "Reset restores configured duration"
+      ]
+    },
+    {
+      "id": "EVAL-04",
+      "category": "backend_only",
+      "involves_auth": false,
+      "expected_agents": ["backend", "qa"],
+      "prompt": "Create a Node.js REST API for a URL shortener with POST /shorten and GET /:code redirect plus in-memory click counts.",
+      "expected_acceptance_points": [
+        "POST /shorten returns short code and 201",
+        "GET /:code redirects or returns 404 for unknown code"
+      ]
+    },
+    {
+      "id": "EVAL-05",
+      "category": "backend_only",
+      "involves_auth": false,
+      "expected_agents": ["backend", "qa"],
+      "prompt": "Build an Express API for an expense tracker with GET /expenses, POST /expenses validation, and monthly totals.",
+      "expected_acceptance_points": [
+        "Invalid amount returns 400",
+        "GET /expenses returns list and aggregated total"
+      ]
+    },
+    {
+      "id": "EVAL-06",
+      "category": "backend_only",
+      "involves_auth": true,
+      "expected_agents": ["backend", "qa"],
+      "prompt": "Create a Node.js authentication API with POST /api/login issuing signed tokens and GET /api/me returning 401 when unauthenticated.",
+      "expected_acceptance_points": [
+        "Valid credentials return 200 with token",
+        "Missing or invalid token returns 401 on GET /api/me"
+      ]
+    },
+    {
+      "id": "EVAL-07",
+      "category": "full_stack",
+      "involves_auth": false,
+      "expected_agents": ["frontend", "backend", "qa"],
+      "prompt": "Build a full-stack Kanban board with React columns/cards and a Node API to create, move, and delete tasks.",
+      "expected_acceptance_points": [
+        "Frontend calls contract routes for task CRUD",
+        "Moving a card persists across reload"
+      ]
+    },
+    {
+      "id": "EVAL-08",
+      "category": "full_stack",
+      "involves_auth": false,
+      "expected_agents": ["frontend", "backend", "qa"],
+      "prompt": "Create a full-stack polling app with React UI to create polls/vote and a Node backend storing vote counts.",
+      "expected_acceptance_points": [
+        "Submitting a vote updates percentages via API",
+        "Invalid poll ID returns 404"
+      ]
+    },
+    {
+      "id": "EVAL-09",
+      "category": "full_stack",
+      "involves_auth": true,
+      "expected_agents": ["frontend", "backend", "qa"],
+      "prompt": "Build a full-stack notes app with a login screen, protected API routes, and per-user note creation.",
+      "expected_acceptance_points": [
+        "Unauthenticated API requests return 401",
+        "Signed-in user can create and list notes"
+      ]
+    },
+    {
+      "id": "EVAL-10",
+      "category": "full_stack",
+      "involves_auth": true,
+      "expected_agents": ["frontend", "backend", "qa"],
+      "prompt": "Create a full-stack team issue tracker with sign-in, role-gated admin settings endpoint (403 for non-admin), and issue status filtering.",
+      "expected_acceptance_points": [
+        "Non-admin calling admin endpoint receives 403",
+        "Issue list filters by status"
+      ]
+    }
+  ]
+}

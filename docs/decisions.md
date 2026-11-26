@@ -262,3 +262,13 @@
 - **Impact:** Recorded in `server/app/sandbox/runner.py` and `server/sandbox.Dockerfile`.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Adjust `shm_size`, `mem_limit`, or `tmpfs` sizes in `SandboxRunner._hardened_create_kwargs()`.
+
+### D-026 — Fixed 10-Prompt Evaluation Dataset (`P13-T1`)
+- **Date and task ID:** 2026-11-26 | P13-T1
+- **Decision:** Store the fixed 10-prompt evaluation dataset in `docs/evaluation-prompts.json` (3 UI-only, 3 backend-only, 4 full-stack including 3 auth-related).
+- **Context:** `PM.md` `P13-T1` requires at least 10 prompts with expected acceptance points saved in the repo and logged in `decisions.md`.
+- **Options considered:** (a) JSON dataset in `docs/evaluation-prompts.json`; (b) Markdown list only.
+- **Chosen option and why:** Structured JSON so future automated evaluation scripts can iterate over it directly.
+- **Impact:** Used for Phase 13 comparison between the multi-agent engine and legacy `/api/chat`.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Edit `docs/evaluation-prompts.json`.

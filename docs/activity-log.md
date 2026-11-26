@@ -310,3 +310,16 @@
   - Secret scan: `SECRET_SCAN_CLEAN`.
 - **Next step:** Commit Phase 12 and request human approval to start **Phase 13: Evaluation**.
 - **Linked decisions:** `D-016`, `D-022`.
+
+---
+
+### #0019 — 2026-11-26
+- **Task ID / Requirements:** `P13-T1`..`P13-T4`
+- **Action:** Created the 10-prompt evaluation dataset (`docs/evaluation-prompts.json`), logged `D-026` in `docs/decisions.md`, and wrote `docs/evaluation.md` with the `PRD.md` Section 11 metrics table.
+- **Files touched:**
+  - `docs/evaluation-prompts.json`, `docs/evaluation.md` (created)
+  - `docs/decisions.md` (modified)
+- **Commands run:** None (live evaluation blocked).
+- **Result:** Live metrics honestly marked `not measured` due to missing `D-016` model strings/keys (H4), missing `.env.local` keys, and Docker Desktop not running.
+- **Next step:** Commit Phase 13 and request human approval to start **Phase 14: Finalization**.
+- **Linked decisions:** `D-016`, `D-026`.
