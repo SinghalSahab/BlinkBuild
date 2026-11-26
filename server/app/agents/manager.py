@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any, Callable, Literal
 from crewai import Agent
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from app.agents.schemas import strip_json_fences
 from app.state.models import (
     AgentOwner,
@@ -40,6 +40,18 @@ class PlannedTaskSpec(BaseModel):
     description: str = Field(..., min_length=1)
     acceptance_criteria: list[str] = Field(..., min_length=1)
     size_hint: Literal["short", "long"] = "short"
+
+    @field_validator("size_hint", mode="before")
+    @classmethod
+    def normalize_size_hint(cls, value: Any) -> str:
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in ("medium", "med", "large", "xl"):
+                return "long"
+            if v in ("small", "tiny", "xs"):
+                return "short"
+            return v
+        return value
 
 
 class ContractSpec(BaseModel):
@@ -114,9 +126,9 @@ def build_planning_prompt(*, prompt: str, template_type: str, constraints: str) 
         "UI-only -> ['frontend', 'qa']; "
         "backend-only -> ['backend', 'qa']; "
         "full-stack -> ['frontend', 'backend', 'qa'] plus a non-null 'contract'.\n"
-        "Return ONLY valid JSON matching ManagerPlanOutput: "
-        "{activated_agents, tasks: [{owner, title, description, acceptance_criteria, size_hint}], "
-        "contract: {routes, frontend_paths, backend_paths} | null, summary}."
+        'Return ONLY valid JSON matching ManagerPlanOutput: '
+        '{activated_agents, tasks: [{owner, title, description, acceptance_criteria, size_hint ("short" | "long")}], '
+        'contract: {routes, frontend_paths, backend_paths} | null, summary}.'
     )
 
 
