@@ -127,7 +127,10 @@ class BlinkBuildOrchestrator:
         mode: LlmMode,
     ) -> FlowRunState:
         orchestrator = self
+        from pathlib import Path
+        Path(self.flow_db_path).parent.mkdir(parents=True, exist_ok=True)
         persistence = SQLiteFlowPersistence(self.flow_db_path)
+        persistence.init_db()
 
         @persist(persistence=persistence)
         class _RunFlow(Flow[FlowRunState]):

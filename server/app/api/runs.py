@@ -96,9 +96,9 @@ def _execute_run_in_background(
     import time
 
     tracker = RunBudgetTracker(run_id=run_id, started_at=time.monotonic())
-    flow_db = os.environ.get(
-        "CREWAI_FLOW_DB_PATH",
-        str(Path(settings.sqlite_db_path).parent / "crewai_flows.db"),
+    flow_db = (
+        os.environ.get("CREWAI_FLOW_DB_PATH", "").strip()
+        or str(Path(settings.sqlite_db_path).parent / "crewai_flows.db")
     )
 
     def _call_agent(owner: AgentOwner, agent_prompt: str, size_hint: str) -> str:
