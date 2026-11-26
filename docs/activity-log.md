@@ -207,3 +207,18 @@
   - `pytest -v`: **21/21 passed** in `5.97s` (18 existing + 3 new Phase 6 tests covering Frontend CrewAI agent & context minimization, UI-only + full-stack merge, and cross-agent conflict defect logging).
 - **Next step:** Commit Phase 6 and request human approval to start **Phase 7: Manager runtime agent**.
 - **Linked decisions:** `D-001`, `D-002`.
+
+---
+
+### #0013 — 2026-11-26
+- **Task ID / Requirements:** `P7-T1`..`P7-T5`, `FR-05`, `FR-06`, `FR-08`
+- **Action:** Implemented CrewAI Manager agent, `ManagerPlanOutput` (enforcing `FR-06` selective activation, `qa` always active, and required `Contract` when both Frontend & Backend are active), `plan_run()`, and `route_defect()` with 1-reask validation & escalation (`server/app/agents/manager.py`). Added Phase 7 tests across 6 prompts and defect routing (`tests/test_manager_agent.py`).
+- **Files touched:**
+  - `server/app/agents/manager.py`, `server/tests/test_manager_agent.py` (created)
+  - `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **29/29 passed** in `5.97s` (21 existing + 8 new Phase 7 tests: CrewAI Manager agent, 6 activation prompts, and defect routing valid/re-ask/escalation). Live LLM planning accuracy is **not tested, waiting for `D-016` values (Checkpoint H4)**.
+- **Next step:** Commit Phase 7 and request human approval to start **Phase 8: QA runtime agent and sandbox** (including Checkpoint H2 for any sandbox package mirror/proxy if needed).
+- **Linked decisions:** `D-001`, `D-002`, `D-007`.
