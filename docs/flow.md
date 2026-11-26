@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P11-T4
+Last updated: 2026-11-26 | Task: P14-T5
 
 ## 1. What BlinkBuild Does Now
 
@@ -95,7 +95,12 @@ Environment variables required currently (see `.env.example`): `API_KEY` (Gemini
 3. Copy the printed public URL into `OLLAMA_BASE_URL` (and matching `OLLAMA_BEARER_TOKEN`) in `.env`.
 4. Verify connectivity via authenticated `GET /llm/status`, then select `Mode: Local (Ollama)` in `/generate`. If the Colab session disconnects, the server automatically falls back to Groq and notifies the UI.
 
-## 10. Known Limitations
+## 10. Known Issues & Limitations
 
 1. `downloadFilesAsZip()` in `client/app/generate/generation-content.tsx` downloads a plain-text bundle (`blinkbuild-project.txt`) rather than a `.zip` archive.
-2. **Planned limitation:** QA will execute generated code inside a full Node Docker container, whereas live preview executes in browser WebContainers (different runtime; mismatches must be recorded during evaluation).
+2. **Runtime mismatch:** QA executes generated code inside a full Node Docker container (`mcr.microsoft.com/playwright:v1.64.1-noble`), whereas live preview executes in browser WebContainers (different runtime; mismatches must be recorded during evaluation).
+3. **Sandbox `install` phase (`P8-T4` / Checkpoint H2):** Marked `blocked` unless `SANDBOX_INSTALL_NETWORK` is configured with an approved package mirror or filtering proxy.
+4. **Pending live verification (blocked on environment):**
+   - Live LLM calls (`D-016` / Checkpoint H4 model strings, keys, and limits not yet supplied).
+   - Live Docker Compose & sibling-container sandbox runs (Docker Desktop not running on build host).
+   - Live Google Colab `local` mode run (Colab runtime unavailable).

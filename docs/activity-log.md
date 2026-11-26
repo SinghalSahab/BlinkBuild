@@ -323,3 +323,25 @@
 - **Result:** Live metrics honestly marked `not measured` due to missing `D-016` model strings/keys (H4), missing `.env.local` keys, and Docker Desktop not running.
 - **Next step:** Commit Phase 13 and request human approval to start **Phase 14: Finalization**.
 - **Linked decisions:** `D-016`, `D-026`.
+
+---
+
+### #0020 — 2026-11-26
+- **Task ID / Requirements:** `P14-T1`..`P14-T5`, `FR-36`, `NFR-06`, `NFR-07`
+- **Action:** Rewrote `README.md` for the `client/` + `server/` monorepo, audited `.env.example` against all `os.environ` and `process.env` references (added `CREWAI_FLOW_DB_PATH=`), finalized `docs/flow.md` with `"Known Issues & Limitations"`, and ran the full final verification suite.
+- **Files touched:**
+  - `README.md`, `.env.example`, `docs/flow.md`, `docs/activity-log.md` (modified)
+- **Commands run:**
+  - `grep -rn "os\.environ\|process\.env" server/app client/app client/lib`
+  - `(grep -E "^[A-Z0-9_]+=.+" .env.example || echo "ENV_EXAMPLE_CLEAN")`
+  - `BLINKBUILD_SERVER_SECRET=check docker compose config --quiet`
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -q`
+  - `cd client && npm run build`
+- **Result:**
+  - `.env.example`: `ENV_EXAMPLE_CLEAN` (zero hardcoded values).
+  - `docker compose config --quiet`: `COMPOSE_OK`.
+  - `server/` `pytest`: **41/41 passed** in `9.44s`.
+  - `client/` `npm run build`: exited `0` (Compiled `7.3s`, TypeScript `4.7s`, `8/8` pages).
+  - Remaining live-environment items (blocked until Docker Desktop is running, H4 `D-016` keys/model strings are supplied, and Colab is available): live `docker compose up`, live container sandbox checks (`P8-T12`), live Colab `local` mode (`P11-T5`), and live 10-prompt evaluation (`P13-T2`).
+- **Next step:** All phases 0–14 are complete on branch `feat/multi-agent-engine`.
+- **Linked decisions:** `D-001`–`D-026`.
