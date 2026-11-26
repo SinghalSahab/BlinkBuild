@@ -8,7 +8,7 @@ import { BASE_PROMPT } from "@/app/lib/prompt";
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY!);
 const model = genAI.getGenerativeModel({ 
-  model: "gemini-2.5-flash",
+  model: "gemini-3.8-flash",
   systemInstruction:BASE_PROMPT
  });
 

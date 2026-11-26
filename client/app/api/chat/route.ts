@@ -6,7 +6,7 @@ const systemPrompt = getSystemPrompt();
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY!);
 const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash", // or "gemini-2.5-flash" if you want faster but lighter responses
+    model: "gemini-3.8-flash",
     systemInstruction: systemPrompt
   });
   

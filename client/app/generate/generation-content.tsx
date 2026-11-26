@@ -32,6 +32,8 @@ import { FileExplorer } from "@/components/FileExplorer"
 import { useWebContainer } from "@/hooks/useWebcontainers"
 import { PreviewFrame } from "@/components/PreviewFrame"
 import { StepType, Step } from "../lib/steps"
+import { basePrompt as reactBasePrompt } from "../lib/defaults/react"
+import { basePrompt as nodeBasePrompt } from "../lib/defaults/node"
 import { AgentActivityPanel, AgentFeedEvent, EngineMode } from "@/components/AgentActivityPanel"
 import type { CreateRunResponse, RunSummaryResponse } from "@/lib/server-types"
 
@@ -180,6 +182,11 @@ function downloadFilesAsZip(files: FileItem[]) {
 export default function GenerationContent() {
   const searchParams = useSearchParams()
   const prompt = searchParams.get("prompt") || ""
+  const rawMode = searchParams.get("mode")
+  const initialMode: EngineMode =
+    rawMode === "fast" || rawMode === "local" || rawMode === "legacy" || rawMode === "auto"
+      ? rawMode
+      : "auto"
   const webcontainer = useWebContainer()
 
   const [steps, setSteps] = useState<Step[]>([])
@@ -194,7 +201,7 @@ export default function GenerationContent() {
   const [templateDone, setTemplateDone] = useState(false) // ✅ phase tracking
   const [chatDone, setChatDone] = useState(false)         // ✅ phase tracking
   const [headerStatus, setHeaderStatus] = useState("Generating your website...")
-  const [engineMode, setEngineMode] = useState<EngineMode>("auto")
+  const [engineMode, setEngineMode] = useState<EngineMode>(initialMode)
   const [runId, setRunId] = useState<string | null>(null)
   const [runStatus, setRunStatus] = useState<string>("queued")
   const [agentEvents, setAgentEvents] = useState<AgentFeedEvent[]>([])
@@ -336,6 +343,41 @@ export default function GenerationContent() {
   // ── CORE LOGIC (extended for multi-agent + legacy fallback) ──
 
   async function backendPrompt(prompt: string, selectedMode: EngineMode = engineMode) {
+    if (selectedMode !== "legacy") {
+      const isNode = /\b(express|rest api|backend[- ]only|node\.?js api|webhook)\b/i.test(prompt)
+      const templateType = isNode ? "node" : "react"
+      const starterXml = isNode ? nodeBasePrompt : reactBasePrompt
+      const templateSteps = parseXml(starterXml).map((x: Step) => ({
+        ...x,
+        id: nextId(),
+        status: "pending" as const,
+      }))
+      setSteps(templateSteps)
+      enqueueSteps(templateSteps)
+      setTemplateDone(true)
+      setHeaderStatus("Building your website...")
+
+      try {
+        const runRes = await fetch("/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, template_type: templateType, mode: selectedMode }),
+        })
+        if (!runRes.ok) {
+          throw new Error(`Multi-agent server returned ${runRes.status}`)
+        }
+        const created: CreateRunResponse = await runRes.json()
+        setRunId(created.run_id)
+        setRunStatus(created.status)
+        sessionStorage.setItem("blinkbuild_last_run_id", created.run_id)
+        connectRunEvents(created.run_id)
+        return
+      } catch (err) {
+        setFallbackNotice(`Multi-agent server unavailable (${String(err)}), falling back to Legacy Gemini path`)
+        setEngineMode("legacy")
+      }
+    }
+
     setHeaderStatus("Analyzing your prompt...")
     const res = await fetch("/api/template", {
       method: "POST",
@@ -359,35 +401,11 @@ export default function GenerationContent() {
     setTemplateDone(true)
     setHeaderStatus("Building your website...")
 
-    if (selectedMode === "legacy") {
-      await runLegacyPath(prompt, data)
-      return
-    }
-
-    try {
-      const templateType = uiprompts.includes("vite-react-typescript-starter") ? "react" : "node"
-      const runRes = await fetch("/api/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, template_type: templateType, mode: selectedMode }),
-      })
-      if (!runRes.ok) {
-        throw new Error(`Multi-agent server returned ${runRes.status}`)
-      }
-      const created: CreateRunResponse = await runRes.json()
-      setRunId(created.run_id)
-      setRunStatus(created.status)
-      sessionStorage.setItem("blinkbuild_last_run_id", created.run_id)
-      connectRunEvents(created.run_id)
-    } catch (err) {
-      setFallbackNotice(`Multi-agent server unavailable (${String(err)}), using Legacy Single-Call path`)
-      setEngineMode("legacy")
-      await runLegacyPath(prompt, data)
-    }
+    await runLegacyPath(prompt, data)
   }
 
   useEffect(() => {
-    backendPrompt(prompt)
+    backendPrompt(prompt, initialMode)
     return () => {
       if (revealTimerRef.current) clearInterval(revealTimerRef.current)
       if (eventSourceRef.current) eventSourceRef.current.close()

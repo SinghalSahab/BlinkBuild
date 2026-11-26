@@ -358,6 +358,42 @@ export default function HomePage() {
                 />
               </div>
 
+              <div style={{ marginBottom: 20 }}>
+                <label htmlFor="mode" style={{
+                  display: 'block',
+                  fontFamily: 'Manrope,sans-serif',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(255,255,255,0.38)',
+                  marginBottom: 8,
+                }}>
+                  Generation Engine
+                </label>
+                <select
+                  id="mode"
+                  name="mode"
+                  defaultValue="auto"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(13,13,20,0.9)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 12,
+                    color: 'white',
+                    fontFamily: 'Manrope, sans-serif',
+                    fontSize: '0.875rem',
+                    padding: '10px 14px',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="auto">Auto (CrewAI — Groq + Ollama)</option>
+                  <option value="fast">Fast (Groq only)</option>
+                  <option value="local">Local (Ollama only)</option>
+                  <option value="legacy">Legacy Single-Call (Gemini)</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 className="cta-btn"

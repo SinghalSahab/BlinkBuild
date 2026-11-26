@@ -359,3 +359,15 @@
   - `pytest -v`: **42/42 passed** (verified in `server/`).
 - **Next step:** User fills in `.env` and runs locally or via Docker.
 - **Linked decisions:** `D-016`, `D-027`.
+
+---
+
+### #0022 — 2026-11-26
+- **Task ID / Requirements:** `D-028` (Runtime fix)
+- **Action:** Updated `gemini-2.5-flash` to `gemini-3.8-flash` in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts` after Google's API returned 404 (`models/gemini-2.5-flash is no longer available to new users`).
+- **Files touched:**
+  - `client/app/api/template/route.ts`, `client/app/api/chat/route.ts`, `docs/decisions.md` (modified)
+- **Commands run:** None yet (ready for `npm run build` / dev reload).
+- **Result:** Updated model strings to `gemini-3.8-flash`.
+- **Next step:** User refreshes `/generate` in the running `npm run dev` server.
+- **Linked decisions:** `D-028`.

@@ -282,3 +282,13 @@
 - **Impact:** `LlmRouter.generate()` resolves the model per provider attempt; `.env.example` updated.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Leave the `LLM_MODEL_GROQ`/`OLLAMA`/`GEMINI` env vars unset.
+
+### D-028 — Update Legacy Client Gemini Model to `gemini-3.8-flash`
+- **Date and task ID:** 2026-11-26 | Runtime fix
+- **Decision:** Update `gemini-2.5-flash` to `gemini-3.8-flash` in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts`.
+- **Context:** Live `/api/template` request returned HTTP `404 Not Found`: `models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash`.
+- **Options considered:** (a) Update to `gemini-3.8-flash`; (b) Make configurable via env var.
+- **Chosen option and why:** Direct update to `gemini-3.8-flash` as instructed by the Google Generative AI API error.
+- **Impact:** Unblocks `/api/template` and legacy `/api/chat` in `client/`.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Change the `model` string in `client/app/api/template/route.ts` and `client/app/api/chat/route.ts`.
