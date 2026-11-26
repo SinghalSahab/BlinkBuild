@@ -13,7 +13,7 @@ from app.agents.merge import MergeConflictError, merge_agent_outputs
 from app.agents.qa import evaluate_with_sandbox, generate_qa_tests
 from app.agents.schemas import AgentFileOutput, AgentTaskInput
 from app.api.events import RunEventBus
-from app.llm.router import RunLimitExceeded
+from app.llm.router import AllProvidersFailedError, RunLimitExceeded
 from app.sandbox.runner import SandboxRunner
 from app.state.models import (
     AgentOwner,
@@ -506,8 +506,17 @@ class BlinkBuildOrchestrator:
                 data={"report": flow.state.escalation_report},
             )
             self.event_bus.close(run_id)
-        except (DefectRoutingEscalationError, MergeConflictError, ValueError) as exc:
+        except (AllProvidersFailedError, DefectRoutingEscalationError, MergeConflictError, ValueError) as exc:
             reason = str(exc)
+            self.repo.append_audit(
+                AuditEntry(
+                    id=f"aud-{uuid.uuid4().hex[:12]}",
+                    run_id=run_id,
+                    category="RUN_ERROR",
+                    actor="flow",
+                    message=reason,
+                )
+            )
             flow.state.escalation_report = self._build_escalation_report(
                 run_id, reason, flow.state.primary_task_id or "unknown"
             )
@@ -518,13 +527,30 @@ class BlinkBuildOrchestrator:
                 RunStatus.FAILED,
                 RunStatus.CANCELLED,
             ):
-                self.repo.update_run_status(run_id, RunStatus.ESCALATED, escalation_reason=reason)
+                target_status = (
+                    RunStatus.FAILED
+                    if isinstance(exc, AllProvidersFailedError)
+                    else RunStatus.ESCALATED
+                )
+                self.repo.update_run_status(run_id, target_status, escalation_reason=reason)
             self.event_bus.publish(
                 run_id=run_id,
-                event_type="escalated",
+                event_type="error" if isinstance(exc, AllProvidersFailedError) else "escalated",
                 message=reason,
                 data={"report": flow.state.escalation_report},
             )
+            self.event_bus.close(run_id)
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            current = self.repo.get_run(run_id)
+            if current and current.status not in (
+                RunStatus.SUCCEEDED,
+                RunStatus.ESCALATED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+            ):
+                self.repo.update_run_status(run_id, RunStatus.FAILED, escalation_reason=reason)
+            self.event_bus.publish(run_id=run_id, event_type="error", message=reason)
             self.event_bus.close(run_id)
 
         return flow.state

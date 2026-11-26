@@ -33,6 +33,8 @@ def test_low_limit_triggers_limit_reached_audit_and_escalation(monkeypatch, tmp_
     monkeypatch.setenv("LLM_MODEL_QA", "stub-qa")
     monkeypatch.setenv("GROQ_API_KEY", "gsk_super_secret_key_12345")
     monkeypatch.setenv("RUN_MAX_LLM_CALLS", "1")
+    for k in ("RUN_MAX_TOKENS", "RUN_MAX_SECONDS", "LLM_RPM_GROQ", "LLM_RPM_OLLAMA", "LLM_RPM_GEMINI", "LLM_FALLBACK_CHAIN"):
+        monkeypatch.delenv(k, raising=False)
 
     repo = StateRepository(create_sqlite_engine(db_file))
     repo.create_run(

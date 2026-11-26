@@ -1126,6 +1126,11 @@ export default function GenerationContent() {
             <span style={{ fontFamily: 'Manrope,sans-serif', fontSize: '0.7rem', fontWeight: 400, color: 'rgba(255,255,255,0.2)' }}>
               {progress}% complete
             </span>
+            {escalationReason && (
+              <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(244,63,94,0.12)', border: '1px solid rgba(244,63,94,0.3)', color: '#fda4af', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                {escalationReason}
+              </div>
+            )}
           </div>
 
           {/* ✅ Scrollable steps list — fixed height window */}
