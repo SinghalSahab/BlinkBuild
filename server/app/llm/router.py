@@ -85,7 +85,7 @@ class LlmRouter:
     ):
         self.config = config
         self.repo = repo
-        self._client = http_client or httpx.Client(timeout=30.0)
+        self._client = http_client or httpx.Client(timeout=180.0)
         self._throttler = throttler or ProviderThrottler(config.rpm_limits, clock=clock)
         self._clock = clock
 
