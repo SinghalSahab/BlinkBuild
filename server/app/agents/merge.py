@@ -47,12 +47,12 @@ def merge_agent_outputs(
 ) -> str:
     """Merge multiple agent outputs, logging a contract Defect on cross-agent path conflict."""
     path_owners: dict[str, AgentOwner] = {}
-    all_files: list[FileEntry] = []
+    files_by_path: dict[str, FileEntry] = {}
     all_commands: list[str] = []
 
     for owner, task_id, output in outputs:
         for entry in output.files:
-            if entry.path in path_owners:
+            if entry.path in path_owners and path_owners[entry.path] != owner:
                 existing_owner = path_owners[entry.path]
                 msg = (
                     f"Merge conflict on '{entry.path}': written by both "
@@ -72,12 +72,12 @@ def merge_agent_outputs(
                     )
                 raise MergeConflictError(msg)
             path_owners[entry.path] = owner
-            all_files.append(entry)
+            files_by_path[entry.path] = entry
         all_commands.extend(output.shell_commands)
 
     return merge_to_bolt_artifact(
         artifact_id=f"blinkbuild-{run_id}",
         title=title,
-        files=all_files,
+        files=list(files_by_path.values()),
         shell_commands=all_commands,
     )

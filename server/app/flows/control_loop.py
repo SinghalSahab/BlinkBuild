@@ -200,6 +200,10 @@ class BlinkBuildOrchestrator:
                 tasks: list[Task] = getattr(orchestrator, "_latest_tasks", [])
                 contract: Contract | None = getattr(orchestrator, "_latest_contract", None)
                 outputs: list[tuple[AgentOwner, str, AgentFileOutput]] = []
+                owned_by_agent: dict[AgentOwner, dict[str, str]] = {
+                    AgentOwner.FRONTEND: {},
+                    AgentOwner.BACKEND: {},
+                }
 
                 for task in tasks:
                     orchestrator.repo.update_task_status(task.id, TaskStatus.IN_PROGRESS)
@@ -227,6 +231,7 @@ class BlinkBuildOrchestrator:
                         task=task,
                         template_type=self.state.template_type,
                         contract=contract,
+                        existing_owned_files=dict(owned_by_agent.get(task.owner, {})),
                         allowed_prefixes=prefixes,
                         constraints=WEBCONTAINER_CONSTRAINTS,
                     )
@@ -247,6 +252,8 @@ class BlinkBuildOrchestrator:
                             repo=orchestrator.repo,
                         )
                     orchestrator.repo.update_task_status(task.id, TaskStatus.IMPLEMENTED)
+                    for entry in out.files:
+                        owned_by_agent.setdefault(task.owner, {})[entry.path] = entry.content
                     orchestrator.event_bus.publish(
                         run_id=run_id,
                         event_type="agent_finished",
