@@ -192,3 +192,18 @@
   - Live LLM backend generation: **not tested, waiting for `D-016` values (Checkpoint H4)**.
 - **Next step:** Commit Phase 5 and request human approval to start **Phase 6: Frontend runtime agent and the contract**.
 - **Linked decisions:** `D-001`, `D-002`, `D-023`.
+
+---
+
+### #0012 — 2026-11-26
+- **Task ID / Requirements:** `P6-T1`..`P6-T5`, `FR-07`, `FR-09`, `FR-11`
+- **Action:** Implemented Frontend CrewAI agent (`app/agents/frontend.py`), extracted shared specialist prompt/runner (`app/agents/runner.py`), added cross-agent file-conflict detection with `Defect` logging against `AgentOwner.MANAGER` (`app/agents/merge.py`), and added Phase 6 tests (`tests/test_frontend_and_contract.py`).
+- **Files touched:**
+  - `server/app/agents/runner.py`, `server/app/agents/frontend.py`, `server/tests/test_frontend_and_contract.py` (created)
+  - `server/app/agents/backend.py`, `server/app/agents/merge.py`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **21/21 passed** in `5.97s` (18 existing + 3 new Phase 6 tests covering Frontend CrewAI agent & context minimization, UI-only + full-stack merge, and cross-agent conflict defect logging).
+- **Next step:** Commit Phase 6 and request human approval to start **Phase 7: Manager runtime agent**.
+- **Linked decisions:** `D-001`, `D-002`.

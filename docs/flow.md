@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P5-T5
+Last updated: 2026-11-26 | Task: P6-T5
 
 ## 1. What BlinkBuild Does Now
 
@@ -39,7 +39,7 @@ BlinkBuild is an AI-powered, browser-based website generator built on Next.js 16
 
 - **Backend (implemented in `server/app/agents/backend.py`):** CrewAI `Agent` (`Backend Software Engineer`) that writes server-side routes, logic, and data handling strictly following the API contract, acceptance criteria, and WebContainer constraints (`server/app/agents/constraints.py`). Returns `AgentFileOutput` JSON validated by Pydantic (`server/app/agents/schemas.py`) with one automatic re-ask on invalid output and path-traversal/ownership checks; `server/app/agents/merge.py` converts validated files into `<boltArtifact>` XML compatible with `client/app/lib/steps.ts` `parseXml()`. Never writes UI code, edits Frontend-owned files, or uses native binaries.
 - **Manager (Planned, Phase 7):** Reads the user prompt, template type, and WebContainer constraints; produces a structured plan (activated agents, tasks with testable acceptance criteria, and an API contract when both Frontend and Backend are active); routes QA defects to `frontend` or `backend`. Never writes application code, never counts retries, and never decides to continue past the retry cap.
-- **Frontend (Planned, Phase 6):** Writes UI code (components, styles, client routing) for the generated project in the chosen template stack. Receives only its task, the contract, owned files, and WebContainer constraints. Never writes server code, edits Backend-owned files, or invents routes outside the contract.
+- **Frontend (implemented in `server/app/agents/frontend.py`):** CrewAI `Agent` (`Frontend Software Engineer`) that writes UI components, styles, and client routing in the chosen template stack. Shares `server/app/agents/runner.py` with Backend (`FR-09` minimal scoped context: task, contract, owned files, WebContainer constraints) and `server/app/agents/merge.py` (`merge_agent_outputs()` detects cross-agent path conflicts and logs a `Defect` against the Manager's contract). Never writes server code, edits Backend-owned files, or invents routes not in the contract.
 - **QA (Planned, Phase 8):** Derives test cases (happy path, negative/edge, security/auth, regression) from acceptance criteria and runs real checks (install, build, lint, type-check, unit tests, browser smoke test) inside hardened sibling Docker containers. Never edits application code, never mocks the logic under test, and never reports a pass for a check that did not run.
 
 ## 5. Control Loop and Retry Cap (Planned)
