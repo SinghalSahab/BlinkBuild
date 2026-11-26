@@ -157,3 +157,39 @@ def test_llm_status_endpoint_requires_auth(monkeypatch):
         assert "providers" in body
         assert body["agent_models"]["manager"] == "stub-mgr"
     get_settings.cache_clear()
+
+
+def test_ngrok_html_interstitial_and_disconnect_fallback(monkeypatch, tmp_path):
+    _setup_env(monkeypatch)
+    repo, run_id = _make_repo(tmp_path)
+    calls = {"local": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "ngrok-free.app" in str(request.url):
+            calls["local"] += 1
+            if calls["local"] == 1:
+                return httpx.Response(200, headers={"content-type": "text/html"}, text="<html>ngrok warning</html>")
+            raise httpx.ConnectError("Tunnel disconnected", request=request)
+        if "api.groq.com" in str(request.url):
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"content": "groq-recovered"}}],
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 5},
+                },
+            )
+        return httpx.Response(500)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    router = LlmRouter(LlmConfig.from_env(), repo=repo, http_client=client)
+    tracker = RunBudgetTracker(run_id=run_id, started_at=0.0)
+
+    # 1. HTML interstitial triggers fallback
+    r1 = router.generate(agent=AgentOwner.FRONTEND, prompt="ui", mode=LlmMode.LOCAL, tracker=tracker)
+    assert r1.provider == "groq"
+    assert r1.fallback_notice is not None
+
+    # 2. Mid-session disconnect triggers fallback
+    r2 = router.generate(agent=AgentOwner.FRONTEND, prompt="ui2", mode=LlmMode.LOCAL, tracker=tracker)
+    assert r2.provider == "groq"
+    assert "ConnectError" in (r2.fallback_notice or "")

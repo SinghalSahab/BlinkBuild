@@ -276,3 +276,19 @@
   - Live browser E2E (`P10-T8` with Clerk sign-in + running Python server): **not tested** without `.env.local` Clerk/LLM keys and running containers.
 - **Next step:** Commit Phase 10 and request human approval to start **Phase 11: Colab Ollama demo mode**.
 - **Linked decisions:** `D-008`, `D-010`, `D-014`.
+
+---
+
+### #0017 — 2026-11-26
+- **Task ID / Requirements:** `P11-T1`..`P11-T6`, `D-015`, `D-016`
+- **Action:** Created `server/colab/ollama_demo.ipynb` (reads `NGROK_AUTHTOKEN` and `OLLAMA_BEARER_TOKEN` from Colab Secrets, reads `OLLAMA_MODEL` from a runtime variable with no hardcoded model, runs a bearer-token stdlib proxy in front of Ollama), documented demo steps in `docs/flow.md`, and added HTML-interstitial + disconnect fallback tests in `server/tests/test_llm_layer.py`.
+- **Files touched:**
+  - `server/colab/ollama_demo.ipynb` (created)
+  - `server/tests/test_llm_layer.py`, `docs/flow.md` (modified)
+- **Commands run:**
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **39/39 passed** (including `test_ngrok_html_interstitial_and_disconnect_fallback`).
+  - Live Colab execution (`P11-T5`): **not tested (Google Colab runtime unavailable in this environment)**; marked blocked pending live Colab run.
+- **Next step:** Commit Phase 11 and request human approval to start **Phase 12: Audit, limits, and observability**.
+- **Linked decisions:** `D-006`, `D-015`, `D-016`.

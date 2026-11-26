@@ -1,6 +1,6 @@
 # BlinkBuild System Flow
 
-Last updated: 2026-11-26 | Task: P10-T8
+Last updated: 2026-11-26 | Task: P11-T4
 
 ## 1. What BlinkBuild Does Now
 
@@ -87,7 +87,13 @@ Verified at Phase 1 (`P1-T7`, Node `v22.20.0`, npm `11.13.0`):
 - Production start: `cd client && npm run start` (`next start`)
 - Lint: `cd client && npm run lint` (`next lint`)
 
-Environment variables required currently (see `.env.example`): `API_KEY` (Gemini), Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`).
+Environment variables required currently (see `.env.example`): `API_KEY` (Gemini), Clerk keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`), `BLINKBUILD_SERVER_SECRET`, `SQLITE_DB_PATH`, and `LLM_MODEL_*` / provider keys.
+
+### How to Run the Colab Ollama Demo (`local` mode)
+1. Open `server/colab/ollama_demo.ipynb` in Google Colab and add `NGROK_AUTHTOKEN` and `OLLAMA_BEARER_TOKEN` to Colab Secrets.
+2. Set `OLLAMA_MODEL` in cell 1 to your chosen coder model (`D-016`) and run all cells.
+3. Copy the printed public URL into `OLLAMA_BASE_URL` (and matching `OLLAMA_BEARER_TOKEN`) in `.env`.
+4. Verify connectivity via authenticated `GET /llm/status`, then select `Mode: Local (Ollama)` in `/generate`. If the Colab session disconnects, the server automatically falls back to Groq and notifies the UI.
 
 ## 10. Known Limitations
 
