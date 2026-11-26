@@ -68,6 +68,18 @@ class ManagerPlanOutput(BaseModel):
     contract: ContractSpec | None = None
     summary: str = Field(..., min_length=1)
 
+    @model_validator(mode="before")
+    @classmethod
+    def drop_qa_from_dev_tasks(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("tasks"), list):
+            filtered = [
+                t for t in data["tasks"]
+                if not (isinstance(t, dict) and str(t.get("owner", "")).strip().lower() == "qa")
+            ]
+            if filtered:
+                data = {**data, "tasks": filtered}
+        return data
+
     @model_validator(mode="after")
     def validate_activation_rules(self) -> "ManagerPlanOutput":
         if AgentOwner.QA not in self.activated_agents:
@@ -127,7 +139,8 @@ def build_planning_prompt(*, prompt: str, template_type: str, constraints: str) 
         "backend-only -> ['backend', 'qa']; "
         "full-stack -> ['frontend', 'backend', 'qa'] plus a non-null 'contract'.\n"
         'Return ONLY valid JSON matching ManagerPlanOutput: '
-        '{activated_agents, tasks: [{owner, title, description, acceptance_criteria, size_hint ("short" | "long")}], '
+        '{activated_agents, tasks: [{owner ("frontend" | "backend" ONLY, never "qa"), '
+        'title, description, acceptance_criteria, size_hint ("short" | "long")}], '
         'contract: {routes, frontend_paths, backend_paths} | null, summary}.'
     )
 
