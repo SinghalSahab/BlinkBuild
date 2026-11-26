@@ -1,5 +1,6 @@
 """Phase 4 tests: LLM config, mode routing, fallback chain, throttling, and run limits."""
 
+import json
 import httpx
 import pytest
 from alembic import command
@@ -193,3 +194,37 @@ def test_ngrok_html_interstitial_and_disconnect_fallback(monkeypatch, tmp_path):
     r2 = router.generate(agent=AgentOwner.FRONTEND, prompt="ui2", mode=LlmMode.LOCAL, tracker=tracker)
     assert r2.provider == "groq"
     assert "ConnectError" in (r2.fallback_notice or "")
+
+
+def test_provider_specific_model_overrides_during_fallback(monkeypatch, tmp_path):
+    _setup_env(
+        monkeypatch,
+        LLM_MODEL_OLLAMA="ollama-coder-model",
+        LLM_MODEL_GROQ="groq-fast-model",
+        LLM_MODEL_GROQ_FRONTEND="groq-ui-model",
+    )
+    repo, run_id = _make_repo(tmp_path)
+    seen_models = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        seen_models.append(body.get("model"))
+        if "ngrok-free.app" in str(request.url):
+            return httpx.Response(503, json={"error": "down"})
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 5},
+            },
+        )
+
+    router = LlmRouter(
+        LlmConfig.from_env(),
+        repo=repo,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    tracker = RunBudgetTracker(run_id=run_id, started_at=0.0)
+    res = router.generate(agent=AgentOwner.FRONTEND, prompt="ui", mode=LlmMode.LOCAL, tracker=tracker)
+    assert seen_models == ["ollama-coder-model", "groq-ui-model"]
+    assert res.model == "groq-ui-model"

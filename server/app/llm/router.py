@@ -129,6 +129,7 @@ class LlmRouter:
                 "gemini": self.check_provider_health("gemini"),
             },
             "agent_models": {k.value: v for k, v in self.config.agent_models.items()},
+            "provider_models": {k: v for k, v in self.config.provider_models.items() if v},
             "fallback_chain": self.config.fallback_chain,
         }
 
@@ -238,7 +239,6 @@ class LlmRouter:
     ) -> LlmResponse:
         """Execute an LLM call with throttling, fallback, usage tracking, and limit checks."""
         self._check_limits_before(tracker)
-        model = self.config.agent_models[agent]
         providers = self.select_providers(mode, size_hint=size_hint)
         if not providers:
             raise AllProvidersFailedError("No configured LLM providers available")
@@ -247,6 +247,7 @@ class LlmRouter:
         first_provider = providers[0]
 
         for idx, provider in enumerate(providers):
+            model = self.config.resolve_model(agent, provider)
             self._throttler.acquire(provider)
             t0 = self._clock()
             try:

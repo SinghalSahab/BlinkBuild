@@ -345,3 +345,17 @@
   - Remaining live-environment items (blocked until Docker Desktop is running, H4 `D-016` keys/model strings are supplied, and Colab is available): live `docker compose up`, live container sandbox checks (`P8-T12`), live Colab `local` mode (`P11-T5`), and live 10-prompt evaluation (`P13-T2`).
 - **Next step:** All phases 0–14 are complete on branch `feat/multi-agent-engine`.
 - **Linked decisions:** `D-001`–`D-026`.
+
+---
+
+### #0021 — 2026-11-26
+- **Task ID / Requirements:** `D-027`, `D-016`
+- **Action:** Added optional per-provider model overrides (`LLM_MODEL_GROQ`, `LLM_MODEL_OLLAMA`, `LLM_MODEL_GEMINI`, and `LLM_MODEL_<PROVIDER>_<AGENT>`) in `server/app/llm/config.py` and `server/app/llm/router.py` so switching/falling back between Groq, Ollama, and Gemini uses each provider's model name. Added `test_provider_specific_model_overrides_during_fallback`.
+- **Files touched:**
+  - `server/app/llm/config.py`, `server/app/llm/router.py`, `.env.example`, `server/tests/test_llm_layer.py`, `docs/decisions.md` (modified)
+- **Commands run:**
+  - `cd server && HOME=/tmp/crewai_home CREWAI_STORAGE_DIR=/tmp/crewai_storage .venv/bin/pytest -v`
+- **Result:**
+  - `pytest -v`: **42/42 passed** (verified in `server/`).
+- **Next step:** User fills in `.env` and runs locally or via Docker.
+- **Linked decisions:** `D-016`, `D-027`.

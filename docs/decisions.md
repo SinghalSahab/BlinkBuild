@@ -272,3 +272,13 @@
 - **Impact:** Used for Phase 13 comparison between the multi-agent engine and legacy `/api/chat`.
 - **Status:** `ACCEPTED`
 - **How to reverse it:** Edit `docs/evaluation-prompts.json`.
+
+### D-027 — Per-Provider Model Overrides (`LLM_MODEL_GROQ`, `LLM_MODEL_OLLAMA`, `LLM_MODEL_GEMINI`)
+- **Date and task ID:** 2026-11-26 | Post-P14 enhancement (human requested)
+- **Decision:** Add optional `LLM_MODEL_GROQ`, `LLM_MODEL_OLLAMA`, `LLM_MODEL_GEMINI` (and per-agent `LLM_MODEL_<PROVIDER>_<AGENT>`) overrides in `LlmConfig.resolve_model(agent, provider)`, falling back to `LLM_MODEL_<AGENT>`.
+- **Context:** Switching between pure Groq, pure Ollama, and hybrid `auto` mode (or falling back from Ollama to Groq) requires provider-specific model IDs because Groq and Ollama use different model names.
+- **Options considered:** (a) Single model string per agent; (b) Optional per-provider override + per-agent fallback.
+- **Chosen option and why:** Option (b) — backward compatible and keeps zero hardcoded model names (`D-016`).
+- **Impact:** `LlmRouter.generate()` resolves the model per provider attempt; `.env.example` updated.
+- **Status:** `ACCEPTED`
+- **How to reverse it:** Leave the `LLM_MODEL_GROQ`/`OLLAMA`/`GEMINI` env vars unset.

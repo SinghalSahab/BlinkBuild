@@ -71,10 +71,10 @@ class SandboxRunner:
         install_network_mode: str | None = None,
     ):
         self._client = docker_client
-        self.image = image or os.environ.get("SANDBOX_IMAGE", "blinkbuild-sandbox:latest")
-        self.timeout_seconds = timeout_seconds or int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "120"))
-        self.mem_limit = mem_limit or os.environ.get("SANDBOX_MEM_LIMIT", "2g")
-        self.nano_cpus = nano_cpus or int(os.environ.get("SANDBOX_NANO_CPUS", "1000000000"))
+        self.image = image or (os.environ.get("SANDBOX_IMAGE", "").strip() or "blinkbuild-sandbox:latest")
+        self.timeout_seconds = timeout_seconds or int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "").strip() or "120")
+        self.mem_limit = mem_limit or (os.environ.get("SANDBOX_MEM_LIMIT", "").strip() or "2g")
+        self.nano_cpus = nano_cpus or int(os.environ.get("SANDBOX_NANO_CPUS", "").strip() or "1000000000")
         self.install_network_mode = install_network_mode or os.environ.get("SANDBOX_INSTALL_NETWORK", "").strip() or None
 
     def _get_client(self) -> Any:

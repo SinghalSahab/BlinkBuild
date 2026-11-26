@@ -34,6 +34,8 @@ def _optional_int_env(name: str) -> int | None:
 @dataclass(frozen=True)
 class LlmConfig:
     agent_models: dict[AgentOwner, str]
+    provider_models: dict[str, str | None]
+    provider_agent_models: dict[tuple[str, AgentOwner], str]
     groq_api_key: str | None
     gemini_api_key: str | None
     ollama_base_url: str | None
@@ -44,6 +46,14 @@ class LlmConfig:
     max_tokens_per_run: int | None
     max_seconds_per_run: int | None
 
+    def resolve_model(self, agent: AgentOwner, provider: str) -> str:
+        """Resolve model for (agent, provider): per-agent+provider -> per-provider -> per-agent."""
+        return (
+            self.provider_agent_models.get((provider, agent))
+            or self.provider_models.get(provider)
+            or self.agent_models[agent]
+        )
+
     @classmethod
     def from_env(cls) -> "LlmConfig":
         agent_models = {
@@ -52,6 +62,22 @@ class LlmConfig:
             AgentOwner.BACKEND: _require_env("LLM_MODEL_BACKEND"),
             AgentOwner.QA: _require_env("LLM_MODEL_QA"),
         }
+
+        provider_env_prefix = {
+            "groq": "GROQ",
+            "local": "OLLAMA",
+            "gemini": "GEMINI",
+        }
+        provider_models = {
+            prov: (os.environ.get(f"LLM_MODEL_{env_p}", "").strip() or None)
+            for prov, env_p in provider_env_prefix.items()
+        }
+        provider_agent_models: dict[tuple[str, AgentOwner], str] = {}
+        for prov, env_p in provider_env_prefix.items():
+            for agent in AgentOwner:
+                val = os.environ.get(f"LLM_MODEL_{env_p}_{agent.value.upper()}", "").strip()
+                if val:
+                    provider_agent_models[(prov, agent)] = val
 
         groq_api_key = os.environ.get("GROQ_API_KEY", "").strip() or None
         gemini_api_key = os.environ.get("GEMINI_API_KEY", "").strip() or None
@@ -81,6 +107,8 @@ class LlmConfig:
 
         return cls(
             agent_models=agent_models,
+            provider_models=provider_models,
+            provider_agent_models=provider_agent_models,
             groq_api_key=groq_api_key,
             gemini_api_key=gemini_api_key,
             ollama_base_url=ollama_base_url.rstrip("/") if ollama_base_url else None,
