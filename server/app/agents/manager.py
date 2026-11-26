@@ -41,6 +41,13 @@ class PlannedTaskSpec(BaseModel):
     acceptance_criteria: list[str] = Field(..., min_length=1)
     size_hint: Literal["short", "long"] = "short"
 
+    @field_validator("acceptance_criteria", mode="before")
+    @classmethod
+    def coerce_acceptance_criteria(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        return value
+
     @field_validator("size_hint", mode="before")
     @classmethod
     def normalize_size_hint(cls, value: Any) -> str:
@@ -58,6 +65,35 @@ class ContractSpec(BaseModel):
     routes: list[ContractRoute] = Field(default_factory=list)
     frontend_paths: list[str] = Field(default_factory=list)
     backend_paths: list[str] = Field(default_factory=list)
+
+    @field_validator("routes", mode="before")
+    @classmethod
+    def coerce_routes(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return [
+                {"path": str(k), "method": "GET", "request_shape": {}, "response_shape": {"target": str(v)}}
+                for k, v in value.items()
+            ]
+        if isinstance(value, list):
+            out = []
+            for item in value:
+                if isinstance(item, str):
+                    out.append({"path": item, "method": "GET"})
+                else:
+                    out.append(item)
+            return out
+        return value
+
+    @field_validator("frontend_paths", "backend_paths", mode="before")
+    @classmethod
+    def coerce_path_list(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return [str(v).lstrip("/") for v in value.values()]
+        if isinstance(value, str):
+            return [value.lstrip("/")]
+        if isinstance(value, list):
+            return [str(v).lstrip("/") for v in value]
+        return value
 
 
 class ManagerPlanOutput(BaseModel):
@@ -139,9 +175,11 @@ def build_planning_prompt(*, prompt: str, template_type: str, constraints: str) 
         "backend-only -> ['backend', 'qa']; "
         "full-stack -> ['frontend', 'backend', 'qa'] plus a non-null 'contract'.\n"
         'Return ONLY valid JSON matching ManagerPlanOutput: '
-        '{activated_agents, tasks: [{owner ("frontend" | "backend" ONLY, never "qa"), '
-        'title, description, acceptance_criteria, size_hint ("short" | "long")}], '
-        'contract: {routes, frontend_paths, backend_paths} | null, summary}.'
+        '{"activated_agents": ["frontend", "qa"], '
+        '"tasks": [{"owner": "frontend" | "backend", "title": "...", "description": "...", '
+        '"acceptance_criteria": ["..."], "size_hint": "short" | "long"}], '
+        '"contract": {"routes": [{"path": "/api/...", "method": "GET", "request_shape": {}, "response_shape": {}}], '
+        '"frontend_paths": ["src/"], "backend_paths": ["server/"]} | null, "summary": "..."}.'
     )
 
 
